@@ -1,4 +1,4 @@
-pebble-cgm
+cgm-pebble
 ==========
 
 Basic pebble watch face (or app if you change the appinfo.json)
