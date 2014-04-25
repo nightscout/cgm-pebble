@@ -18,3 +18,7 @@ build/
 *.exe
 *.out
 *.app
+
+InteliJ
+.idea/
+*.iml
