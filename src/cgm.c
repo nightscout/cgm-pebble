@@ -42,11 +42,11 @@ static const uint32_t const alert[] = { 500, 200, 3000 };
 
 
 enum CgmKey {
-	CGM_ICON_KEY = 0x0,		 // TUPLE_INT
-	CGM_BG_KEY = 0x1,		   // TUPLE_CSTRING
-	CGM_READTIME_KEY = 0x2,	 // TUPLE_CSTRING
-	CGM_ALERT_KEY = 0x3,		// TUPLE_INT
-	CGM_TIME_NOW = 0x4,		 // TUPLE_CSTRING
+	CGM_ICON_KEY = 0x0,         // TUPLE_INT
+	CGM_BG_KEY = 0x1,           // TUPLE_CSTRING
+	CGM_READTIME_KEY = 0x2,     // TUPLE_CSTRING
+	CGM_ALERT_KEY = 0x3,        // TUPLE_INT
+	CGM_TIME_NOW = 0x4,         // TUPLE_CSTRING
 	CGM_DELTA_KEY = 0x5
 };
 
@@ -65,7 +65,12 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
 	text_layer_set_text(datetime_layer, "--:--");
 	text_layer_set_text(message_layer, "Data: OFFLINE");
 
+	//    VibePattern pat = {
+	//        .durations = alert,
+	//       .num_segments = ARRAY_LENGTH(alert),
+	//    };
 	vibes_double_pulse();
+	//vibes_enqueue_custom_pattern(pat);
 }
 
 static void alert_handler(uint8_t alertValue)
@@ -92,6 +97,7 @@ static void alert_handler(uint8_t alertValue)
 			.num_segments = ARRAY_LENGTH(low),
 		};
 		vibes_enqueue_custom_pattern(lowpat);
+		//vibes_double_pulse(lowpat);
 		break;
 
 		//High
@@ -257,6 +263,7 @@ static void window_unload(Window *window) {
 	text_layer_destroy(bg_layer);
 	text_layer_destroy(message_layer);
 	bitmap_layer_destroy(icon_layer);
+	//  bitmap_layer_destroy(date_layer);
 }
 
 static void init(void) {
@@ -265,7 +272,7 @@ static void init(void) {
 	window_set_fullscreen(window, true);
 	window_set_window_handlers(window, (WindowHandlers) {
 		.load = window_load,
-		.unload = window_unload
+			.unload = window_unload
 	});
 
 	app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());

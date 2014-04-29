@@ -1,69 +1,72 @@
 {
-    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
-    "shortName": "CGM",
-    "longName": "CGM",
-    "companyName": "HackingType1-CostikCare,LLC",
-    "versionCode": 2,
     "versionLabel": "2.0.0",
     "watchapp": {
         "watchface": true
     },
     "appKeys": {
-        "delta":5,
-        "time":4,
-        "alert":3,
-        "readtime": 2,
         "bg": 1,
+        "time": 4,
+        "alert": 3,
+        "delta": 5,
+        "readtime": 2,
         "icon": 0
     },
+    "longName": "CGM",
+    "shortName": "CGM",
+    "capabilities": [
+        ""
+    ],
+    "companyName": "HackingType1-CostikCare,LLC",
     "resources": {
         "media": [
-                  {
-                  "menuIcon": true,
-                  "type": "png",
-                  "name": "IMAGE_MENU_ICON",
-                  "file": "img/logo.png"
-                  },
-                  {
-                  "type": "png",
-                  "name": "IMAGE_UP",
-                  "file": "img/up.png"
-                  },
-                  {
-                  "type": "png",
-                  "name": "IMAGE_UPUP",
-                  "file": "img/upup.png"
-                  },
-                  {
-                  "type": "png",
-                  "name": "IMAGE_UP45",
-                  "file": "img/up45.png"
-                  },
-                  {
-                  "type": "png",
-                  "name": "IMAGE_FLAT",
-                  "file": "img/flat.png"
-                  },
-                  {
-                  "type": "png",
-                  "name": "IMAGE_DOWN",
-                  "file": "img/down.png"
-                  },
-                  {
-                  "type": "png",
-                  "name": "IMAGE_DOWNDOWN",
-                  "file": "img/downdown.png"
-                  },
-                  {
-                  "type": "png",
-                  "name": "IMAGE_DOWN45",
-                  "file": "img/down45.png"
-                  },
-                  {
-                  "type": "png",
-                  "name": "IMAGE_NONE",
-                  "file": "img/none.png"
-                  }
-                  ]
-    }
+            {
+                "file": "images/none.png",
+                "type": "png",
+                "name": "IMAGE_NONE"
+            },
+            {
+                "file": "images/down45.png",
+                "type": "png",
+                "name": "IMAGE_DOWN45"
+            },
+            {
+                "file": "images/downdown.png",
+                "type": "png",
+                "name": "IMAGE_DOWNDOWN"
+            },
+            {
+                "file": "images/down.png",
+                "type": "png",
+                "name": "IMAGE_DOWN"
+            },
+            {
+                "file": "images/flat.png",
+                "type": "png",
+                "name": "IMAGE_FLAT"
+            },
+            {
+                "file": "images/up45.png",
+                "type": "png",
+                "name": "IMAGE_UP45"
+            },
+            {
+                "file": "images/upup.png",
+                "type": "png",
+                "name": "IMAGE_UPUP"
+            },
+            {
+                "file": "images/up.png",
+                "type": "png",
+                "name": "IMAGE_UP"
+            },
+            {
+                "menuIcon": true,
+                "file": "images/logo.png",
+                "type": "png",
+                "name": "IMAGE_MENU_ICON"
+            }
+        ]
+    },
+    "versionCode": 2,
+    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9"
 }
