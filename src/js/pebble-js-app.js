@@ -35,7 +35,7 @@ function fetchCgmData(lastReadTime, lastBG) {
 					alertValue = 2;
 				else if (currentBG < 120 && currentTrend == 7) //DBL_DOWN
 					alertValue = 2;
-				else if (currentBG == 100 && currentTrend !== 0) //PERFECT SCORE
+				else if (currentBG == 100 && currentTrend == 4 && sinceLastAlert > TIME_15_MINS) //PERFECT SCORE
 					alertValue = 1;
 				else if (currentBG > 120 && currentTrend == 1) //DBL_UP
 					alertValue = 3;
