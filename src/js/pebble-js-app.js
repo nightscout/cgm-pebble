@@ -1,4 +1,5 @@
-var TIME_15_MINS = 15 * 60 * 1000,
+var TIME_5_MINS = 5 * 60 * 1000,
+    TIME_15_MINS = 15 * 60 * 1000,
     TIME_30_MINS = TIME_15_MINS * 2;
 
 var lastAlert = 0;
@@ -34,11 +35,11 @@ function fetchCgmData(lastReadTime, lastBG) {
                   alertValue = 2;
                 else if (currentBG < 70 && sinceLastAlert > TIME_15_MINS)
                     alertValue = 2;
-                else if (currentBG < 120 && currentTrend == 7) //DBL_DOWN
+                else if (currentBG < 120 && currentTrend == 7 && sinceLastAlert > TIME_5_MINS) //DBL_DOWN
                   alertValue = 2;
                 else if (currentBG == 100 && currentTrend == 4 && sinceLastAlert > TIME_15_MINS) //PERFECT SCORE
                   alertValue = 1;
-                else if (currentBG > 120 && currentTrend == 1) //DBL_UP
+                else if (currentBG > 120 && currentTrend == 1 && sinceLastAlert > TIME_15_MINS) //DBL_UP
                   alertValue = 3;
                 else if (currentBG > 200 && sinceLastAlert > TIME_30_MINS && currentDelta > 0)
                   alertValue = 3;

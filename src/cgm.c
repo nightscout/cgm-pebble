@@ -239,7 +239,7 @@ static void window_load(Window *window) {
 	draw_date();
 
 	Tuplet initial_values[] = {
-		TupletInteger(CGM_ICON_KEY, (uint8_t)4),
+		TupletInteger(CGM_ICON_KEY, (uint8_t)0),
 		TupletCString(CGM_BG_KEY, ""),
 		TupletCString(CGM_READTIME_KEY, ""),
 		TupletInteger(CGM_ALERT_KEY, 0),
