@@ -1,23 +1,18 @@
 {
-    "companyName": "HackingType1-CostikCare,LLC",
     "longName": "CGM",
-    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
-    "capabilities": [
-        ""
-    ],
+    "companyName": "HackingType1-CostikCare,LLC",
     "versionLabel": "2.0.0",
-    "appKeys": {
-        "icon": 0,
-        "alert": 3,
-        "delta": 5,
-        "time": 4,
-        "readtime": 2,
-        "bg": 1
-    },
     "watchapp": {
         "watchface": true
     },
-    "versionCode": 2,
+    "appKeys": {
+        "readtime": 2,
+        "icon": 0,
+        "bg": 1,
+        "alert": 3,
+        "time": 4,
+        "delta": 5
+    },
     "resources": {
         "media": [
             {
@@ -62,11 +57,16 @@
             },
             {
                 "file": "images/logo.png",
-                "menuIcon": true,
                 "name": "IMAGE_MENU_ICON",
-                "type": "png"
+                "type": "png",
+                "menuIcon": true
             }
         ]
     },
-    "shortName": "CGM"
+    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
+    "capabilities": [
+        ""
+    ],
+    "shortName": "CGM",
+    "versionCode": 2
 }

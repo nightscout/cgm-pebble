@@ -1,4 +1,5 @@
 var TIME_5_MINS = 5 * 60 * 1000,
+    TIME_10_MINS = 10 * 60 * 1000,
     TIME_15_MINS = 15 * 60 * 1000,
     TIME_30_MINS = TIME_15_MINS * 2;
 
@@ -19,19 +20,26 @@ function fetchCgmData(lastReadTime, lastBG) {
                 console.log("status: " + req.status);
                 response = JSON.parse(req.responseText);
                 
-                var now = Date.now(),
-                  sinceLastAlert = now - lastAlert,
-                  alertValue = 0,
-                  bgs = response.bgs,
-                  currentBG = bgs[0].sgv,
-                  currentDelta = bgs[0].bgdelta,
-                  currentTrend = bgs[0].trend,
-                  delta = "Change: " + currentDelta + "mg/dL";
-                
+                var now = new Date().getTime(),
+                    sinceLastAlert = now - lastAlert,
+                    alertValue = 0,
+                    bgs = response.bgs,
+                    currentBG = bgs[0].sgv,
+                    currentBGDelta = bgs[0].bgdelta,
+                    currentTrend = bgs[0].trend,
+                    delta = currentBGDelta + " mg/dL",
+                    readingtime = new Date(bgs[0].datetime).getTime(),
+                    readago = now - readingtime;
               
-                if (currentBG < 55)
+                console.log("now: " + now);
+                console.log("readingtime: " + readingtime);
+                console.log("readago: " + readago);
+                  
+                if (currentBG < 39) {
+                  if (sinceLastAlert > TIME_10_MINS) alertValue = 2;
+                } else if (currentBG < 55)
                   alertValue = 2;
-                else if (currentBG < 60 && currentDelta < 0)
+                else if (currentBG < 60 && currentBGDelta < 0)
                   alertValue = 2;
                 else if (currentBG < 70 && sinceLastAlert > TIME_15_MINS)
                     alertValue = 2;
@@ -41,21 +49,25 @@ function fetchCgmData(lastReadTime, lastBG) {
                   alertValue = 1;
                 else if (currentBG > 120 && currentTrend == 1 && sinceLastAlert > TIME_15_MINS) //DBL_UP
                   alertValue = 3;
-                else if (currentBG > 200 && sinceLastAlert > TIME_30_MINS && currentDelta > 0)
+                else if (currentBG > 200 && sinceLastAlert > TIME_30_MINS && currentBGDelta > 0)
                   alertValue = 3;
                 else if (currentBG > 250 && sinceLastAlert > TIME_30_MINS)
                   alertValue = 3;
                 else if (currentBG > 300 && sinceLastAlert > TIME_15_MINS)
                   alertValue = 3;
               
+                if (alertValue === 0 && readago > TIME_10_MINS) {
+                  alertValue = 1;
+                }
+              
                 if (alertValue > 0) {
                   lastAlert = now;
                 }
-                  
+              
                 var message = {
                   icon: bgs[0].trend,
                   bg: currentBG,
-                  readtime: formatDate(new Date(bgs[0].datetime)),
+                  readtime: timeago(new Date().getTime() - (new Date(bgs[0].datetime).getTime())),
                   alert: alertValue,
                   time: formatDate(new Date()),
                   delta: delta
@@ -86,6 +98,30 @@ function formatDate(date) {
     formatted = hours + ":" + date.getMinutes() + meridiem;
   
   return formatted;
+}
+
+function timeago(offset) {
+  var parts = {},
+    MINUTE = 60 * 1000,
+    HOUR = 3600 * 1000,
+    DAY = 86400 * 1000,
+    WEEK = 604800 * 1000;
+          
+  if (offset <= MINUTE)              parts = { lablel: 'now' };
+  if (offset <= MINUTE * 2)          parts = { label: '1 min ago' };
+  else if (offset < (MINUTE * 60))   parts = { value: Math.round(Math.abs(offset / MINUTE)), label: 'mins' };
+  else if (offset < (HOUR * 2))      parts = { label: '1 hr ago' };
+  else if (offset < (HOUR * 24))     parts = { value: Math.round(Math.abs(offset / HOUR)), label: 'hrs' };
+  else if (offset < (DAY * 1))       parts = { label: '1 day ago' };
+  else if (offset < (DAY * 7))       parts = { value: Math.round(Math.abs(offset / DAY)), label: 'day' };
+  else if (offset < (WEEK * 52))     parts = { value: Math.round(Math.abs(offset / WEEK)), label: 'week' };
+  else                               parts = { label: 'a long time ago' };
+  
+  if (parts.value)
+    return parts.value + ' ' + parts.label + ' ago';
+  else
+    return parts.label;
+
 }
 
 Pebble.addEventListener("ready",
