@@ -7,23 +7,29 @@ var lastAlert = 0;
 
 function fetchCgmData(lastReadTime, lastBG) {
     
-    var response;
+    var response, message;
     var req = new XMLHttpRequest();
     //req.open('GET', "http://192.168.1.105:9000/pebble", true);
-    req.open('GET', "http://project-glu.cbrese.com/pebble", true);
+  req.open('GET', "http://bewest.io:8080/pebble", true);
     
     req.onload = function(e) {
+        
         console.log(req.readyState);
         if (req.readyState == 4) {
-            console.log(req.status);
+          var now = new Date().getTime();
+       
+          console.log(req.status);
             if(req.status == 200) {
                 console.log("status: " + req.status);
                 response = JSON.parse(req.responseText);
                 
-                var now = new Date().getTime(),
+                var
                     sinceLastAlert = now - lastAlert,
                     alertValue = 0,
-                    bgs = response.bgs,
+                    bgs = response.bgs;
+              if (bgs && bgs.length > 0) {
+              console.log('got bgs', JSON.stringify(bgs));
+              var
                     currentBG = bgs[0].sgv,
                     currentBGDelta = bgs[0].bgdelta,
                     currentTrend = bgs[0].trend,
@@ -64,7 +70,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                   lastAlert = now;
                 }
               
-                var message = {
+                message = {
                   icon: bgs[0].trend,
                   bg: currentBG,
                   readtime: timeago(new Date().getTime() - (new Date(bgs[0].datetime).getTime())),
@@ -75,7 +81,22 @@ function fetchCgmData(lastReadTime, lastBG) {
                 
                 console.log("message: " + JSON.stringify(message));
                 Pebble.sendAppMessage(message);
-            }
+            
+              } else {
+                message = {
+                  icon: 'logo.png',
+                  bg: -1,
+                  readtime: timeago(new Date().getTime() - (now)),
+                  alert: 3,
+                  time: formatDate(new Date()),
+                  delta: 0
+                
+                };
+                console.log("sending message", JSON.stringify(message)); 
+                Pebble.sendAppMessage(message);
+            
+              }
+              }
         }
     };
     req.send(null);
