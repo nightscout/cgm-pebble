@@ -10,7 +10,7 @@ function fetchCgmData(lastReadTime, lastBG) {
     var response;
     var req = new XMLHttpRequest();
     //req.open('GET', "http://192.168.1.105:9000/pebble", true);
-    req.open('GET', "http://project-glu.cbrese.com/pebble", true);
+    req.open('GET', "http://nightscout.cbrese.com/pebble", true);
     
     req.onload = function(e) {
         console.log(req.readyState);
@@ -27,7 +27,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                     currentBG = bgs[0].sgv,
                     currentBGDelta = bgs[0].bgdelta,
                     currentTrend = bgs[0].trend,
-                    delta = currentBGDelta + " mg/dL",
+                    delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL",
                     readingtime = new Date(bgs[0].datetime).getTime(),
                     readago = now - readingtime;
               
@@ -37,9 +37,9 @@ function fetchCgmData(lastReadTime, lastBG) {
                   
                 if (currentBG < 39) {
                   if (sinceLastAlert > TIME_10_MINS) alertValue = 2;
-                } else if (currentBG < 55)
+                } else if (currentBG < 55 && sinceLastAlert > TIME_5_MINS)
                   alertValue = 2;
-                else if (currentBG < 60 && currentBGDelta < 0)
+                else if (currentBG < 60 && currentBGDelta < 0 && sinceLastAlert > TIME_10_MINS)
                   alertValue = 2;
                 else if (currentBG < 70 && sinceLastAlert > TIME_15_MINS)
                     alertValue = 2;
@@ -56,7 +56,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                 else if (currentBG > 300 && sinceLastAlert > TIME_15_MINS)
                   alertValue = 3;
               
-                if (alertValue === 0 && readago > TIME_10_MINS) {
+                if (alertValue === 0 && readago > TIME_10_MINS && sinceLastAlert > TIME_15_MINS) {
                   alertValue = 1;
                 }
               

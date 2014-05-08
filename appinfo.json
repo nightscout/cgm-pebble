@@ -1,72 +1,72 @@
 {
-    "longName": "CGM",
-    "companyName": "HackingType1-CostikCare,LLC",
-    "versionLabel": "2.0.0",
-    "watchapp": {
-        "watchface": true
-    },
-    "appKeys": {
-        "readtime": 2,
-        "icon": 0,
-        "bg": 1,
-        "alert": 3,
-        "time": 4,
-        "delta": 5
-    },
+    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
     "resources": {
         "media": [
             {
-                "file": "images/none.png",
                 "name": "IMAGE_NONE",
-                "type": "png"
+                "type": "png",
+                "file": "images/none.png"
             },
             {
-                "file": "images/down45.png",
                 "name": "IMAGE_DOWN45",
-                "type": "png"
+                "type": "png",
+                "file": "images/down45.png"
             },
             {
-                "file": "images/downdown.png",
                 "name": "IMAGE_DOWNDOWN",
-                "type": "png"
+                "type": "png",
+                "file": "images/downdown.png"
             },
             {
-                "file": "images/down.png",
                 "name": "IMAGE_DOWN",
-                "type": "png"
+                "type": "png",
+                "file": "images/down.png"
             },
             {
-                "file": "images/flat.png",
                 "name": "IMAGE_FLAT",
-                "type": "png"
+                "type": "png",
+                "file": "images/flat.png"
             },
             {
-                "file": "images/up45.png",
                 "name": "IMAGE_UP45",
-                "type": "png"
+                "type": "png",
+                "file": "images/up45.png"
             },
             {
-                "file": "images/upup.png",
                 "name": "IMAGE_UPUP",
-                "type": "png"
+                "type": "png",
+                "file": "images/upup.png"
             },
             {
-                "file": "images/up.png",
                 "name": "IMAGE_UP",
-                "type": "png"
+                "type": "png",
+                "file": "images/up.png"
             },
             {
-                "file": "images/logo.png",
                 "name": "IMAGE_MENU_ICON",
                 "type": "png",
-                "menuIcon": true
+                "menuIcon": true,
+                "file": "images/logo.png"
             }
         ]
     },
-    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
     "capabilities": [
         ""
     ],
+    "companyName": "HackingType1-CostikCare,LLC",
     "shortName": "CGM",
-    "versionCode": 2
+    "longName": "CGM",
+    "watchapp": {
+        "watchface": true
+    },
+    "versionCode": 2,
+    "appKeys": {
+        "delta": 5,
+        "bg": 1,
+        "icon": 0,
+        "readtime": 2,
+        "alert": 3,
+        "time": 4
+    },
+    "versionLabel": "2.0.0"
 }
