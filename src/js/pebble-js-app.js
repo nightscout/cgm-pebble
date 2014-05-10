@@ -83,14 +83,14 @@ function fetchCgmData(lastReadTime, lastBG) {
 
 function formatDate(date) {
   var minutes = date.getMinutes(),
-    hours = date.getHours() || 12,
-    meridiem = " PM",
+    hours = date.getHours(),
+    meridiem = (hours >= 12) ? ' PM' : ' AM',
     formatted;
   
-  if (hours > 12)
+  if (hours === 0)
+    hours = 12;
+  else if (hours > 12)
     hours = hours - 12; 
-  else
-    meridiem = " AM";
   
   if (minutes < 10)
     formatted = hours + ":0" + date.getMinutes() + meridiem;
