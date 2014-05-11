@@ -146,7 +146,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 		break;
 
 	case CGM_TIME_NOW:
-        draw_date();
+		draw_date();
 		text_layer_set_text(datetime_layer, new_tuple->value->cstring);
 		break;
 
