@@ -1,72 +1,72 @@
 {
-    "versionLabel": "2.0.0",
-    "watchapp": {
-        "watchface": true
-    },
     "appKeys": {
-        "bg": 1,
-        "alert": 3,
-        "icon": 0,
-        "time": 4,
         "readtime": 2,
-        "delta": 5
+        "bg": 1,
+        "delta": 5,
+        "time": 4,
+        "alert": 3,
+        "icon": 0
     },
-    "longName": "CGM",
-    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
-    "shortName": "CGM",
-    "capabilities": [
-        ""
-    ],
-    "versionCode": 2,
     "resources": {
         "media": [
             {
-                "menuIcon": true,
+                "name": "IMAGE_MENU_ICON",
                 "file": "images/logo.png",
                 "type": "png",
-                "name": "IMAGE_MENU_ICON"
+                "menuIcon": true
             },
             {
+                "name": "IMAGE_UP",
                 "file": "images/up.png",
-                "type": "png",
-                "name": "IMAGE_UP"
+                "type": "png"
             },
             {
+                "name": "IMAGE_UPUP",
                 "file": "images/upup.png",
-                "type": "png",
-                "name": "IMAGE_UPUP"
+                "type": "png"
             },
             {
+                "name": "IMAGE_UP45",
                 "file": "images/up45.png",
-                "type": "png",
-                "name": "IMAGE_UP45"
+                "type": "png"
             },
             {
+                "name": "IMAGE_FLAT",
                 "file": "images/flat.png",
-                "type": "png",
-                "name": "IMAGE_FLAT"
+                "type": "png"
             },
             {
+                "name": "IMAGE_DOWN",
                 "file": "images/down.png",
-                "type": "png",
-                "name": "IMAGE_DOWN"
+                "type": "png"
             },
             {
+                "name": "IMAGE_DOWNDOWN",
                 "file": "images/downdown.png",
-                "type": "png",
-                "name": "IMAGE_DOWNDOWN"
+                "type": "png"
             },
             {
+                "name": "IMAGE_DOWN45",
                 "file": "images/down45.png",
-                "type": "png",
-                "name": "IMAGE_DOWN45"
+                "type": "png"
             },
             {
+                "name": "IMAGE_NONE",
                 "file": "images/none.png",
-                "type": "png",
-                "name": "IMAGE_NONE"
+                "type": "png"
             }
         ]
     },
-    "companyName": "HackingType1-CostikCare,LLC"
+    "watchapp": {
+        "watchface": true
+    },
+    "shortName": "CGM",
+    "versionLabel": "2.0.0",
+    "versionCode": 2,
+    "companyName": "HackingType1-CostikCare,LLC",
+    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
+    "capabilities": [
+        ""
+    ],
+    "longName": "CGM"
 }

@@ -27,6 +27,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                     sinceLastAlert = now - lastAlert,
                     alertValue = 0,
                     bgs = response.bgs;
+              console.log('bgs?', JSON.stringify(bgs));
               if (bgs && bgs.length > 0) {
               console.log('got bgs', JSON.stringify(bgs));
               var
@@ -84,10 +85,10 @@ function fetchCgmData(lastReadTime, lastBG) {
             
               } else {
                 message = {
-                  icon: 'logo.png',
-                  bg: -1,
+                  icon: 0,
+                  bg: '???',
                   readtime: timeago(new Date().getTime() - (now)),
-                  alert: 3,
+
                   time: formatDate(new Date()),
                   delta: 0
                 

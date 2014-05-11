@@ -125,9 +125,11 @@ static void alert_handler(uint8_t alertValue)
 
 static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tuple, const Tuple* old_tuple, void* context) {
 
+	APP_LOG(APP_LOG_LEVEL_INFO, "sync tuple");
 	switch (key) {
 
 	case CGM_ICON_KEY:
+   	APP_LOG(APP_LOG_LEVEL_INFO, "ICON");
 		if (icon_bitmap) {
 			gbitmap_destroy(icon_bitmap);
 		}
@@ -136,24 +138,31 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 		break;
 
 	case CGM_BG_KEY:
+    
+   	APP_LOG(APP_LOG_LEVEL_INFO, "BG");
 		text_layer_set_text(bg_layer, new_tuple->value->cstring);
 		strncpy(last_bg, new_tuple->value->cstring, 124);
 		break;
 
 	case CGM_READTIME_KEY:
+   	APP_LOG(APP_LOG_LEVEL_INFO, "readtime");
 		strncpy(new_time, new_tuple->value->cstring, 124);
 		text_layer_set_text(readtime_layer, new_tuple->value->cstring);
 		break;
 
 	case CGM_TIME_NOW:
+    
+   	APP_LOG(APP_LOG_LEVEL_INFO, "cgm time");
 		text_layer_set_text(datetime_layer, new_tuple->value->cstring);
 		break;
 
 	case CGM_ALERT_KEY:
+   	APP_LOG(APP_LOG_LEVEL_INFO, "alert");
 		alert_handler(new_tuple->value->uint8);
 		break;
 
 	case CGM_DELTA_KEY:
+   	APP_LOG(APP_LOG_LEVEL_INFO, "delta");
 		text_layer_set_text(message_layer, new_tuple->value->cstring);
 		break;
 	}
