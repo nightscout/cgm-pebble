@@ -67,7 +67,7 @@
       function saveOptions() {
         var options = {
           'endpoint': $("#endpoint").val(),
-          'name': $("#name").val(),
+          'name': $("#name").val()
           // 'special-feature': $("#special-feature").val(),
           // 'checkbox-cheetos': $("#checkbox-cheetos").is(':checked'),
           // 'checkbox-doritos': $("#checkbox-doritos").is(':checked'),
@@ -94,7 +94,6 @@
           var location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(saveOptions()));
           console.log('saved', window.localStorage.cgmOpts);
           console.log("Warping to: " + location);
-          console.log(location);
           document.location = location;
         });
 
