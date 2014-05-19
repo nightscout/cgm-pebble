@@ -72,10 +72,14 @@
           // 'checkbox-fritos': $("#checkbox-fritos").is(':checked'),
           // 'checkbox-sunchips': $("#checkbox-sunchips").is(':checked')
         }
+        window.localStorage.cgmOpts = options;
         return options;
       }
 
       $().ready(function() {
+        var opts = window.localStorage.cgmOpts || { };
+        console.log("opts", JSON.stringify(opts));
+        $("#endpoint").val(opts && opts.endpoint ? opts.endpoint: '');
         $("#b-cancel").click(function() {
           console.log("Cancel");
           document.location = "pebblejs://close";
