@@ -78,8 +78,8 @@
 
       $().ready(function() {
         var opts = window.localStorage.cgmOpts || { };
-        console.log("opts", opts, JSON.stringify(opts));
-        $("#endpoint").val(opts && opts.endpoint ? opts.endpoint: '');
+        console.log("opts", opts, JSON.stringify(opts), opts.endpoint);
+        $("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
         $("#b-cancel").click(function() {
           console.log("Cancel");
           document.location = "pebblejs://close";
