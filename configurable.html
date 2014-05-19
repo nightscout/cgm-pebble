@@ -72,7 +72,7 @@
           // 'checkbox-fritos': $("#checkbox-fritos").is(':checked'),
           // 'checkbox-sunchips': $("#checkbox-sunchips").is(':checked')
         }
-        window.localStorage.setItem('cgmOpts', options);
+        window.localStorage.setItem('cgmOpts', JSON.stringify(options));
         return options;
       }
 
