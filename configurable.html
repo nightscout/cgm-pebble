@@ -26,6 +26,7 @@
           <textarea cols="40" rows="8" name="name" id="name"></textarea>
         </div>
 
+<!--
         <div data-role="fieldcontain">
           <label for="special-feature">Activate special feature:</label>
           <select name="special-feature" id="special-feature" data-role="slider">
@@ -51,6 +52,7 @@
             </fieldset>
           </div>
         </div>
+-->
 
         <div class="ui-body ui-body-b">
           <fieldset class="ui-grid-a">
@@ -79,7 +81,7 @@
       $().ready(function() {
         var opts = (window.localStorage && window.localStorage.cgmOpts
                  ? JSON.parse(window.localStorage.cgmOpts) : { });
-        console.log("opts", opts, opts.endpoint);
+        console.log("opts", JSON.stringify(opts));
         $("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
         $("#b-cancel").click(function() {
           console.log("Cancel");
