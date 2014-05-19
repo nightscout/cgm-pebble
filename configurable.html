@@ -77,8 +77,8 @@
       }
 
       $().ready(function() {
-        var opts = window.localStorage.cgmOpts || { };
-        console.log("opts", JSON.stringify(opts));
+        var opts = JSON.window.localStorage.cgmOpts || { };
+        console.log("opts", opts, JSON.stringify(opts));
         $("#endpoint").val(opts && opts.endpoint ? opts.endpoint: '');
         $("#b-cancel").click(function() {
           console.log("Cancel");
