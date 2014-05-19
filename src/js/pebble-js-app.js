@@ -10,7 +10,7 @@ function fetchCgmData(lastReadTime, lastBG) {
     var response, message;
     var req = new XMLHttpRequest();
     //req.open('GET', "http://192.168.1.105:9000/pebble", true);
-  req.open('GET', "http://bewest.io:8080/pebble", true);
+  req.open('GET', "http://nightscouttd1.azurewebsites.net/pebble", true);
     
     req.onload = function(e) {
         
