@@ -77,7 +77,7 @@
       }
 
       $().ready(function() {
-        var opts = JSON.window.localStorage.cgmOpts || { };
+        var opts = window.localStorage.cgmOpts || { };
         console.log("opts", opts, JSON.stringify(opts));
         $("#endpoint").val(opts && opts.endpoint ? opts.endpoint: '');
         $("#b-cancel").click(function() {
@@ -89,6 +89,7 @@
           console.log("Submit");
 
           var location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(saveOptions()));
+          console.log('saved', window.localStorage.cgmOpts);
           console.log("Warping to: " + location);
           console.log(location);
           document.location = location;
