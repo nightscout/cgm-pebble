@@ -22,3 +22,4 @@ build/
 InteliJ
 .idea/
 *.iml
+gh-pages/
