@@ -6,7 +6,7 @@ var TIME_5_MINS = 5 * 60 * 1000,
 var lastAlert = 0;
 var started = new Date( ).getTime( );
 function fetchCgmData(lastReadTime, lastBG) {
-    
+
     var response, message;
     var opts = options( );
     if (!opts.endpoint) {
@@ -19,7 +19,7 @@ function fetchCgmData(lastReadTime, lastBG) {
         delta: 'missing endpoint'
       };
 
-      console.log("sending message", JSON.stringify(message)); 
+      console.log("sending message", JSON.stringify(message));
       Pebble.sendAppMessage(message);
       return;
     }
@@ -27,9 +27,9 @@ function fetchCgmData(lastReadTime, lastBG) {
 
     console.log('options', opts, opts.endpoint);
     req.open('GET', opts.endpoint, true);
-    
+
     req.onload = function(e) {
-        
+
         console.log(req.readyState);
         if (req.readyState == 4) {
           var now = new Date().getTime();
@@ -37,7 +37,7 @@ function fetchCgmData(lastReadTime, lastBG) {
             if(req.status == 200) {
                 console.log("status: " + req.status);
                 response = JSON.parse(req.responseText);
-                
+
                 var sinceLastAlert = now - lastAlert,
                     alertValue = 0,
                     bgs = response.bgs,
@@ -47,11 +47,11 @@ function fetchCgmData(lastReadTime, lastBG) {
                     delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL",
                     readingtime = new Date(bgs[0].datetime).getTime(),
                     readago = now - readingtime;
-              
+
                 console.log("now: " + now);
                 console.log("readingtime: " + readingtime);
                 console.log("readago: " + readago);
-                  
+
                 if (currentBG < 39) {
                   if (sinceLastAlert > TIME_10_MINS) alertValue = 2;
                 } else if (currentBG < 55 && sinceLastAlert > TIME_5_MINS)
@@ -72,14 +72,14 @@ function fetchCgmData(lastReadTime, lastBG) {
                   alertValue = 3;
                 else if (currentBG > 300 && sinceLastAlert > TIME_15_MINS)
                   alertValue = 3;
-              
+
                 if (alertValue === 0 && readago > TIME_10_MINS && sinceLastAlert > TIME_15_MINS) {
                   alertValue = 1;
                 }
 
               console.log("message: " + JSON.stringify(message));
               Pebble.sendAppMessage(message);
-          
+
             } else {
               message = {
                 icon: 0,
@@ -88,14 +88,13 @@ function fetchCgmData(lastReadTime, lastBG) {
                 alert: 1,
                 time: formatDate(new Date()),
                 delta: 'offline'
-              
+
               };
-              console.log("sending message", JSON.stringify(message)); 
+              console.log("sending message", JSON.stringify(message));
               Pebble.sendAppMessage(message);
-          
+
             }
           }
-        }
     };
     req.send(null);
 }
