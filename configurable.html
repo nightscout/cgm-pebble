@@ -12,6 +12,7 @@
     <div data-role="page" id="main">
       <div data-role="header" class="jqm-header">
         <h1>Configurable Pebble App</h1>
+        <tt id="status"></tt>
       </div>
 
       <div data-role="content">
@@ -90,20 +91,25 @@
       }
 
       $().ready(function() {
+        $('#status').text('ready');
         var opts = (window.localStorage && window.localStorage.cgmOpts
                  ? JSON.parse(window.localStorage.cgmOpts) : { });
+        $('#status').text(['has opts', JSON.stringify(opts)].join(' '));
         console.log("opts", JSON.stringify(opts));
         $("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
         $("#b-cancel").click(function() {
           console.log("Cancel");
+          $('#status').text('canceling');
           document.location = "pebblejs://close";
         });
 
         $("#b-submit").click(function() {
           console.log("Submit");
+          $('#status').text('submitting');
 
           var location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(saveOptions()));
           console.log("Warping to: " + location);
+          $('#status').text('closing');
           document.location = location;
           // console.log('saved', window.localStorage.cgmOpts);
         });
