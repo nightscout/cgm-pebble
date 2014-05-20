@@ -4,7 +4,7 @@ var TIME_5_MINS = 5 * 60 * 1000,
     TIME_30_MINS = TIME_15_MINS * 2;
 
 var lastAlert = 0;
-
+var started = new Date( ).getTime( );
 function fetchCgmData(lastReadTime, lastBG) {
     
     var response, message;
@@ -12,11 +12,11 @@ function fetchCgmData(lastReadTime, lastBG) {
     if (!opts.endpoint) {
       message = {
         icon: 0,
-        bg: 'configure settings',
-        readtime: timeago(new Date().getTime() - (now)),
-        alert: 1,
+        bg: '??',
+        readtime: timeago(new Date().getTime() - started),
+        alert: 0,
         time: formatDate(new Date()),
-        delta: 0
+        delta: 'missing endpoint'
       };
 
       console.log("sending message", JSON.stringify(message)); 
@@ -162,7 +162,7 @@ function timeago(offset) {
 
 }
 
-function options (opts) {
+function options ( ) {
   var opts = [ ].slice.call(arguments).pop( );
   if (opts) {
     window.localStorage.setItem('cgmPebble', JSON.stringify(opts));

@@ -6,47 +6,18 @@
     "appKeys": {
         "time": 4,
         "delta": 5,
-        "alert": 3,
         "readtime": 2,
         "bg": 1,
-        "icon": 0
+        "icon": 0,
+        "alert": 3
     },
     "resources": {
         "media": [
             {
-                "name": "IMAGE_NONE",
+                "name": "IMAGE_MENU_ICON",
                 "type": "png",
-                "file": "images/none.png"
-            },
-            {
-                "name": "IMAGE_DOWN45",
-                "type": "png",
-                "file": "images/down45.png"
-            },
-            {
-                "name": "IMAGE_DOWNDOWN",
-                "type": "png",
-                "file": "images/downdown.png"
-            },
-            {
-                "name": "IMAGE_DOWN",
-                "type": "png",
-                "file": "images/down.png"
-            },
-            {
-                "name": "IMAGE_FLAT",
-                "type": "png",
-                "file": "images/flat.png"
-            },
-            {
-                "name": "IMAGE_UP45",
-                "type": "png",
-                "file": "images/up45.png"
-            },
-            {
-                "name": "IMAGE_UPUP",
-                "type": "png",
-                "file": "images/upup.png"
+                "file": "images/logo.png",
+                "menuIcon": true
             },
             {
                 "name": "IMAGE_UP",
@@ -54,10 +25,39 @@
                 "file": "images/up.png"
             },
             {
-                "name": "IMAGE_MENU_ICON",
+                "name": "IMAGE_UPUP",
                 "type": "png",
-                "file": "images/logo.png",
-                "menuIcon": true
+                "file": "images/upup.png"
+            },
+            {
+                "name": "IMAGE_UP45",
+                "type": "png",
+                "file": "images/up45.png"
+            },
+            {
+                "name": "IMAGE_FLAT",
+                "type": "png",
+                "file": "images/flat.png"
+            },
+            {
+                "name": "IMAGE_DOWN",
+                "type": "png",
+                "file": "images/down.png"
+            },
+            {
+                "name": "IMAGE_DOWNDOWN",
+                "type": "png",
+                "file": "images/downdown.png"
+            },
+            {
+                "name": "IMAGE_DOWN45",
+                "type": "png",
+                "file": "images/down45.png"
+            },
+            {
+                "name": "IMAGE_NONE",
+                "type": "png",
+                "file": "images/none.png"
             }
         ]
     },
