@@ -4,24 +4,41 @@ var TIME_5_MINS = 5 * 60 * 1000,
     TIME_30_MINS = TIME_15_MINS * 2;
 
 var lastAlert = 0;
-
+var started = new Date( ).getTime( );
 function fetchCgmData(lastReadTime, lastBG) {
     
-    var response;
+    var response, message;
+    var opts = options( );
+    if (!opts.endpoint) {
+      message = {
+        icon: 0,
+        bg: '??',
+        readtime: timeago(new Date().getTime() - started),
+        alert: 0,
+        time: formatDate(new Date()),
+        delta: 'missing endpoint'
+      };
+
+      console.log("sending message", JSON.stringify(message)); 
+      Pebble.sendAppMessage(message);
+      return;
+    }
     var req = new XMLHttpRequest();
-    //req.open('GET', "http://192.168.1.105:9000/pebble", true);
-    req.open('GET', "http://nightscout.cbrese.com/pebble", true);
+
+    console.log('options', opts, opts.endpoint);
+    req.open('GET', opts.endpoint, true);
     
     req.onload = function(e) {
+        
         console.log(req.readyState);
         if (req.readyState == 4) {
+          var now = new Date().getTime();
             console.log(req.status);
             if(req.status == 200) {
                 console.log("status: " + req.status);
                 response = JSON.parse(req.responseText);
                 
-                var now = new Date().getTime(),
-                    sinceLastAlert = now - lastAlert,
+                var sinceLastAlert = now - lastAlert,
                     alertValue = 0,
                     bgs = response.bgs,
                     currentBG = bgs[0].sgv,
@@ -59,23 +76,25 @@ function fetchCgmData(lastReadTime, lastBG) {
                 if (alertValue === 0 && readago > TIME_10_MINS && sinceLastAlert > TIME_15_MINS) {
                   alertValue = 1;
                 }
+
+              console.log("message: " + JSON.stringify(message));
+              Pebble.sendAppMessage(message);
+          
+            } else {
+              message = {
+                icon: 0,
+                bg: '???',
+                readtime: timeago(new Date().getTime() - (now)),
+                alert: 1,
+                time: formatDate(new Date()),
+                delta: 'offline'
               
-                if (alertValue > 0) {
-                  lastAlert = now;
-                }
-              
-                var message = {
-                  icon: bgs[0].trend,
-                  bg: currentBG,
-                  readtime: timeago(new Date().getTime() - (new Date(bgs[0].datetime).getTime())),
-                  alert: alertValue,
-                  time: formatDate(new Date()),
-                  delta: delta
-                };
-                
-                console.log("message: " + JSON.stringify(message));
-                Pebble.sendAppMessage(message);
+              };
+              console.log("sending message", JSON.stringify(message)); 
+              Pebble.sendAppMessage(message);
+          
             }
+          }
         }
     };
     req.send(null);
@@ -124,6 +143,16 @@ function timeago(offset) {
 
 }
 
+function options ( ) {
+  var opts = [ ].slice.call(arguments).pop( );
+  if (opts) {
+    window.localStorage.setItem('cgmPebble', JSON.stringify(opts));
+  } else {
+    opts = JSON.parse(window.localStorage.getItem('cgmPebble'));
+  }
+  return opts;
+}
+
 Pebble.addEventListener("ready",
                         function(e) {
                         console.log("connect: " + e.ready);
@@ -136,5 +165,16 @@ Pebble.addEventListener("appmessage",
                         fetchCgmData(e.payload.readtime, e.payload.bg);
                         });
 
+Pebble.addEventListener("showConfiguration", function(e) {
+  console.log("showing configuration", JSON.stringify(e));
+  Pebble.openURL('http://bewest.github.io/cgm-pebble/configurable.html');
+});
 
+Pebble.addEventListener("webviewclosed", function(e) {
+  var opts = e.response.length > 5
+           ? JSON.parse(decodeURIComponent(e.response)): null;
+
+  options(opts);
+
+});
 

@@ -2,7 +2,7 @@
     "versionCode": 2,
     "shortName": "CGM",
     "capabilities": [
-        ""
+        "configurable"
     ],
     "resources": {
         "media": [
