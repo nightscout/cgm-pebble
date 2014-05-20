@@ -106,7 +106,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                   readtime: timeago(new Date().getTime() - (now)),
                   alert: 1,
                   time: formatDate(new Date()),
-                  delta: 0
+                  delta: 'offline'
                 
                 };
                 console.log("sending message", JSON.stringify(message)); 
