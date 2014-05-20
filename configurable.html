@@ -74,7 +74,16 @@
           // 'checkbox-fritos': $("#checkbox-fritos").is(':checked'),
           // 'checkbox-sunchips': $("#checkbox-sunchips").is(':checked')
         }
-        window.localStorage.setItem('cgmOpts', JSON.stringify(options));
+        try {
+          if (window.localStorage && window.localStorage.setItem) {
+            window.localStorage.setItem('cgmOpts', JSON.stringify(options));
+          } else {
+            window.localStorage.cgmOpts =  JSON.stringify(options);
+          }
+        } except (e) {
+          console.log('err', e);
+          options.error = e;
+        }
         return options;
       }
 
