@@ -76,23 +76,37 @@ function fetchCgmData(lastReadTime, lastBG) {
               if (alertValue === 0 && readago > TIME_10_MINS && sinceLastAlert > TIME_15_MINS) {
                 alertValue = 1;
               }
-
-            console.log("message: " + JSON.stringify(message));
-            Pebble.sendAppMessage(message);
-        
-          } else {
-            message = {
-              icon: 0,
-              bg: '???',
-              readtime: timeago(new Date().getTime() - (now)),
-              alert: 1,
-              time: formatDate(new Date()),
-              delta: 'offline'
             
-            };
-            console.log("sending message", JSON.stringify(message)); 
-            Pebble.sendAppMessage(message);
-        
+              if (alertValue > 0) {
+                lastAlert = now;
+              }
+            
+              message = {
+                icon: bgs[0].trend,
+                bg: currentBG,
+                readtime: timeago(new Date().getTime() - (new Date(bgs[0].datetime).getTime())),
+                alert: alertValue,
+                time: formatDate(new Date()),
+                delta: delta
+              };
+              
+              console.log("message: " + JSON.stringify(message));
+              Pebble.sendAppMessage(message);
+          
+            } else {
+              message = {
+                icon: 0,
+                bg: '???',
+                readtime: timeago(new Date().getTime() - (now)),
+                alert: 1,
+                time: formatDate(new Date()),
+                delta: 'offline'
+              
+              };
+              console.log("sending message", JSON.stringify(message)); 
+              Pebble.sendAppMessage(message);
+          
+            }
           }
         }
     };
