@@ -65,6 +65,13 @@
       </div>
     </div>
     <script>
+      if (console && console.log && console.log.call) {
+      } else {
+        window.console = { log: function ( ) {
+            $('#status').text([ ].slice.call(arguments).join(' '));
+          }
+        };
+      }
       $('#status').text('initializing');
       function saveOptions() {
         $('#status').text('prepping save');
