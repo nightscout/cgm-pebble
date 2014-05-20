@@ -67,6 +67,7 @@
     <script>
       $('#status').text('initializing');
       function saveOptions() {
+        $('#status').text('prepping save');
         var options = {
           'endpoint': $("#endpoint").val(),
           'name': $("#name").val()
@@ -88,6 +89,7 @@
           options.error = e;
         }
         */
+        $('#status').text(['prepped', JSON.stringify(options)].join(' '));
         return options;
       }
 
