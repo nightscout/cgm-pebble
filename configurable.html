@@ -7,23 +7,40 @@
     <link rel="stylesheet" href="http://code.jquery.com/mobile/1.3.2/jquery.mobile-1.3.2.min.css" />
     <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
     <script src="http://code.jquery.com/mobile/1.3.2/jquery.mobile-1.3.2.min.js"></script>
+    <style type="text/css">
+      .hidden {
+        display: none;
+      }
+    </style>
   </head>
   <body>
     <div data-role="page" id="main">
       <div data-role="header" class="jqm-header">
         <h1>Configure CGM data source</h1>
-        <tt id="status"></tt>
+        <tt class="hidden" id="status"></tt>
       </div>
 
       <div data-role="content">
+        <h3>Custom</h3>
+        <p>Custom data URL.</p>
+        <div data-role="fieldcontain">
+          <label for="endpoint">Data endpoint:</label>
+          <input type="text" name="endpoint" id="endpoint" />
+        </div>
 
         <div data-role="collapsible-set">
-          <div data-role="collapsible" data-collapsed="false">
-            <h3>Custom</h3>
-            <p>Custom data URL.</p>
+
+          <div class="azure panel" data-role="collapsible">
+            <h3>Azure</h3>
+            <p>Azure website name</p>
             <div data-role="fieldcontain">
-              <label for="endpoint">Data endpoint:</label>
-              <input type="text" name="endpoint" id="endpoint" />
+              <label for="azure_name">Azure name</label>
+              <tt class="prefix"
+                  >http://nightscout</tt><input class="value" type="text" name="azure_name" id="azure_name" /><tt class="postfix"
+                  >.azurewebsites.net/pebble</tt>
+              <div class="ui-block-b">
+                <button type="button" data-theme="a" class="configure" id="">Configure</button>
+              </div>
             </div>
           </div>
         </div>
@@ -45,17 +62,12 @@
           }
         };
       }
+
       $('#status').text('initializing');
       function saveOptions() {
         $('#status').text('prepping save');
         var options = {
-          'endpoint': $("#endpoint").val(),
-          'name': $("#name").val()
-          // 'special-feature': $("#special-feature").val(),
-          // 'checkbox-cheetos': $("#checkbox-cheetos").is(':checked'),
-          // 'checkbox-doritos': $("#checkbox-doritos").is(':checked'),
-          // 'checkbox-fritos': $("#checkbox-fritos").is(':checked'),
-          // 'checkbox-sunchips': $("#checkbox-sunchips").is(':checked')
+          'endpoint': $("#endpoint").val()
         }
         try {
           if (window.localStorage && window.localStorage.setItem) {
@@ -72,8 +84,19 @@
       }
 
       $().ready(function() {
+        if (window.location.hash.indexOf("debug") > -1) {
+          $('#status').removeClass('hidden');
+        }
         $('#status').text('ready');
         $('#status').text('setting up events');
+        $(".configure").click(function(ev) {
+          var panel = $(this).closest('.panel');
+          var value = [ panel.find('.prefix').text( ),
+              panel.find('.value').val( ),
+              panel.find('.postfix').text( ) ].join('');
+          $('#endpoint').val(value);
+        });
+
         $("#b-cancel").click(function() {
           console.log("Cancel");
           $('#status').text('canceling');
