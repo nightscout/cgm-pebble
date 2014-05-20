@@ -95,7 +95,6 @@ function fetchCgmData(lastReadTime, lastBG) {
           
             }
           }
-        }
     };
     req.send(null);
 }
