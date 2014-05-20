@@ -17,43 +17,16 @@
 
       <div data-role="content">
 
-        <div data-role="fieldcontain">
-          <label for="endpoint">Data endpoint:</label>
-          <input type="text" name="endpoint" id="endpoint" />
-        </div>
-
-<!--
-        <div data-role="fieldcontain">
-          <label for="name">Name:</label>
-          <textarea cols="40" rows="8" name="name" id="name"></textarea>
-        </div>
-
-        <div data-role="fieldcontain">
-          <label for="special-feature">Activate special feature:</label>
-          <select name="special-feature" id="special-feature" data-role="slider">
-            <option value="off">Off</option>
-            <option value="on">On</option>
-          </select>
-        </div>
-
-        <div data-role="fieldcontain">
-          <fieldset data-role="controlgroup">
-            <legend>Choose as many snacks as you'd like:</legend>
-            <input type="checkbox" name="checkbox-cheetos" id="checkbox-cheetos" class="custom" />
-            <label for="checkbox-cheetos">Cheetos</label>
-
-            <input type="checkbox" name="checkbox-doritos" id="checkbox-doritos" class="custom" />
-            <label for="checkbox-doritos">Doritos</label>
-
-            <input type="checkbox" name="checkbox-fritos" id="checkbox-fritos" class="custom" />
-            <label for="checkbox-fritos">Fritos</label>
-
-            <input type="checkbox" name="checkbox-sunchips" id="checkbox-sunchips" class="custom" />
-            <label for="checkbox-sunchips">Sun Chips</label>
-            </fieldset>
+        <div data-role="collapsible-set">
+          <div data-role="collapsible" data-collapsed="false">
+            <h3>Custom</h3>
+            <p>Custom data URL.</p>
+            <div data-role="fieldcontain">
+              <label for="endpoint">Data endpoint:</label>
+              <input type="text" name="endpoint" id="endpoint" />
+            </div>
           </div>
         </div>
--->
 
         <div class="ui-body ui-body-b">
           <fieldset class="ui-grid-a">
