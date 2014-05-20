@@ -102,12 +102,7 @@
 
       $().ready(function() {
         $('#status').text('ready');
-        var _raw = window.localStorage && window.localStorage.cgmOpts
-                 ? window.localStorage.cgmOpts : null;
-        var opts = (_raw ? JSON.parse(_raw) : { });
-        $('#status').text(['has opts', JSON.stringify(opts)].join(' '));
-        console.log("opts", JSON.stringify(opts));
-        $("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
+        $('#status').text('setting up events');
         $("#b-cancel").click(function() {
           console.log("Cancel");
           $('#status').text('canceling');
@@ -124,6 +119,20 @@
           document.location = location;
           // console.log('saved', window.localStorage.cgmOpts);
         });
+        $('#status').text('fetching from localStorage');
+        var _raw = null;
+        var opts = { };
+        try {
+          _raw = window.localStorage && window.localStorage.cgmOpts
+                   ? window.localStorage.cgmOpts : null;
+          opts = (_raw ? JSON.parse(_raw) : { });
+        } catch (e) {
+          console.log(e);
+          $('#status').text('error', e);
+        }
+        $('#status').text(['has opts', JSON.stringify(opts)].join(' '));
+        console.log("opts", JSON.stringify(opts));
+        $("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
 
       });
     </script>
