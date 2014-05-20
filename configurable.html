@@ -102,8 +102,9 @@
 
       $().ready(function() {
         $('#status').text('ready');
-        var opts = (window.localStorage && window.localStorage.cgmOpts
-                 ? JSON.parse(window.localStorage.cgmOpts) : { });
+        var _raw = window.localStorage && window.localStorage.cgmOpts
+                 ? window.localStorage.cgmOpts : null;
+        var opts = (_raw ? JSON.parse(_raw) : { });
         $('#status').text(['has opts', JSON.stringify(opts)].join(' '));
         console.log("opts", JSON.stringify(opts));
         $("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
