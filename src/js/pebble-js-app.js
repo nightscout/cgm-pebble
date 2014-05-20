@@ -88,9 +88,9 @@ function fetchCgmData(lastReadTime, lastBG) {
                   icon: 0,
                   bg: '???',
                   readtime: timeago(new Date().getTime() - (now)),
-
+                  alert: 0,
                   time: formatDate(new Date()),
-                  delta: 0
+                  delta: 'offline'
                 
                 };
                 console.log("sending message", JSON.stringify(message)); 
