@@ -84,7 +84,6 @@
           // 'checkbox-fritos': $("#checkbox-fritos").is(':checked'),
           // 'checkbox-sunchips': $("#checkbox-sunchips").is(':checked')
         }
-        /*
         try {
           if (window.localStorage && window.localStorage.setItem) {
             window.localStorage.setItem('cgmOpts', JSON.stringify(options));
@@ -95,7 +94,6 @@
           console.log('err', e);
           options.error = e;
         }
-        */
         $('#status').text(['prepped', JSON.stringify(options)].join(' '));
         return options;
       }
@@ -127,8 +125,9 @@
                    ? window.localStorage.cgmOpts : null;
           opts = (_raw ? JSON.parse(_raw) : { });
         } catch (e) {
+          opts.error = e;
           console.log(e);
-          $('#status').text('error', e);
+          $('#status').text('error', JSON.stringify(e));
         }
         $('#status').text(['has opts', JSON.stringify(opts)].join(' '));
         console.log("opts", JSON.stringify(opts));
