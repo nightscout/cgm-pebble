@@ -8,9 +8,25 @@ var lastAlert = 0;
 function fetchCgmData(lastReadTime, lastBG) {
     
     var response, message;
+    var opts = options( );
+    if (!opts.endpoint) {
+      message = {
+        icon: 0,
+        bg: '???',
+        readtime: timeago(new Date().getTime() - (now)),
+
+        time: formatDate(new Date()),
+        delta: 0
+      
+      };
+      console.log("sending message", JSON.stringify(message)); 
+      Pebble.sendAppMessage(message);
+      return;
+    }
     var req = new XMLHttpRequest();
     //req.open('GET', "http://192.168.1.105:9000/pebble", true);
-  req.open('GET', "http://nightscouttd1.azurewebsites.net/pebble", true);
+    console.log('options', opts, opts.endpoint);
+    req.open('GET', opts.endpoint, true);
     
     req.onload = function(e) {
         
@@ -88,7 +104,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                   icon: 0,
                   bg: '???',
                   readtime: timeago(new Date().getTime() - (now)),
-
+                  alert: 1,
                   time: formatDate(new Date()),
                   delta: 0
                 
@@ -144,6 +160,16 @@ function timeago(offset) {
   else
     return parts.label;
 
+}
+
+function options (opts) {
+  var opts = [ ].slice.call(arguments).pop( );
+  if (opts) {
+    window.localStorage.setItem('cgmPebble', JSON.stringify(opts));
+  } else {
+    opts = JSON.parse(window.localStorage.getItem('cgmPebble'));
+  }
+  return opts;
 }
 
 Pebble.addEventListener("ready",
