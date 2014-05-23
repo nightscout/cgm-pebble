@@ -119,7 +119,7 @@
         try {
           _raw = window.localStorage && window.localStorage.cgmOpts
                    ? window.localStorage.cgmOpts : null;
-          opts = (_raw ? JSON.parse(_raw) : { });
+          opts = (_raw && _raw.length && _raw.length > 5 ? JSON.parse(_raw) : { });
         } catch (e) {
           opts.error = e;
           console.log(e);
