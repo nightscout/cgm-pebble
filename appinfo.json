@@ -67,6 +67,6 @@
     "watchapp": {
         "watchface": true
     },
-    "companyName": "Nightscout Community",
+    "companyName": "Nightscout contributors",
     "versionLabel": "2.0.1"
 }
