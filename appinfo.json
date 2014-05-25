@@ -61,12 +61,12 @@
             }
         ]
     },
-    "versionCode": 2,
+    "versionCode": 3,
     "shortName": "CGM",
     "longName": "CGM",
     "watchapp": {
         "watchface": true
     },
-    "companyName": "HackingType1-CostikCare,LLC",
-    "versionLabel": "2.0.0"
+    "companyName": "Nightscout Community",
+    "versionLabel": "2.0.1"
 }
