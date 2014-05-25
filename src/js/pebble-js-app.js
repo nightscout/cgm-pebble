@@ -46,7 +46,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                       alertValue = 0,currentBG = bgs[0].sgv,
                       currentBGDelta = bgs[0].bgdelta,
                       currentTrend = bgs[0].trend,
-                      delta = currentBGDelta + " mg/dL",
+                      delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL",
                       readingtime = new Date(bgs[0].datetime).getTime(),
                       readago = now - readingtime;
 
