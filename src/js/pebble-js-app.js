@@ -20,7 +20,7 @@ function fetchCgmData(lastReadTime, lastBG) {
         };
         
         console.log("sending message", JSON.stringify(message));
-        Pebble.sendAppMessage(message);
+        MessageQueue.sendAppMessage(message);
         return;
     }
     var req = new XMLHttpRequest();
