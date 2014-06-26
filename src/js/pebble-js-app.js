@@ -86,7 +86,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                         alertValue = 2;
                     else if (currentBG < 120 && currentDirection == 'DoubleDown' && sinceLastAlert > TIME_5_MINS)
                         alertValue = 2;
-                    else if (currentBG == 100 && currentDirection == 'Flat' && sinceLastAlert > TIME_15_MINS)
+                    else if (currentBG == 100 && currentDirection == 'Flat' && sinceLastAlert > TIME_15_MINS) //Perfect Score - a good time to take a picture :)
                         alertValue = 1;
                     else if (currentBG > 120 && currentDirection == 'DoubleUp' && sinceLastAlert > TIME_15_MINS)
                         alertValue = 3;
