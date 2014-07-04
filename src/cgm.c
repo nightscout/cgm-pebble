@@ -213,7 +213,7 @@ static void window_load(Window *window) {
 	bg_layer = text_layer_create(GRect(0, 5, 83, 47));
 	text_layer_set_text_color(bg_layer, GColorWhite);
 	text_layer_set_background_color(bg_layer, GColorClear);
-	text_layer_set_font(bg_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_MEDIUM_NUMBERS));
+	text_layer_set_font(bg_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
 	text_layer_set_text_alignment(bg_layer, GTextAlignmentCenter);
 	layer_add_child(window_layer, text_layer_get_layer(bg_layer));
 
