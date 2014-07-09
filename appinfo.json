@@ -61,12 +61,12 @@
             }
         ]
     },
-    "versionCode": 4,
+    "versionCode": 5,
     "shortName": "CGM",
     "longName": "CGM",
     "watchapp": {
         "watchface": true
     },
     "companyName": "Nightscout contributors",
-    "versionLabel": "2.1.0"
+    "versionLabel": "2.1.1"
 }
