@@ -144,7 +144,7 @@ function formatDate(date) {
     
     if (hours > 12)
         hours = hours - 12;
-    else
+    else if (hours < 12)
         meridiem = " AM";
     
     if (minutes < 10)
