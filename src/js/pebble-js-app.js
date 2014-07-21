@@ -69,7 +69,8 @@ function fetchCgmData(lastReadTime, lastBG) {
                     currentBGDelta = bgs[0].bgdelta,
                     currentDirection = bgs[0].direction,
                     currentBattery = bgs[0].battery,
-                    delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL" + " " + currentBattery + "%",
+                    delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL";
+                    if (currentBattery) delta = delta + " " + currentBattery + "%";
                     readingtime = new Date(bgs[0].datetime).getTime(),
                     readago = now - readingtime;
                                         
