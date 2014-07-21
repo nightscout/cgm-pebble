@@ -1,4 +1,4 @@
-var TIME_5_MINS = 5 * 60 * 1000,
+vvar TIME_5_MINS = 5 * 60 * 1000,
 TIME_10_MINS = 10 * 60 * 1000,
 TIME_15_MINS = 15 * 60 * 1000,
 TIME_30_MINS = TIME_15_MINS * 2;
@@ -68,10 +68,11 @@ function fetchCgmData(lastReadTime, lastBG) {
                     alertValue = 0,currentBG = bgs[0].sgv,
                     currentBGDelta = bgs[0].bgdelta,
                     currentDirection = bgs[0].direction,
-                    delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL",
+                    currentBattery = bgs[0].battery,
+                    delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL" + " " + currentBattery + "%",
                     readingtime = new Date(bgs[0].datetime).getTime(),
                     readago = now - readingtime;
-                    
+                                        
                     console.log("now: " + now);
                     console.log("readingtime: " + readingtime);
                     console.log("readago: " + readago);
@@ -349,4 +350,5 @@ Pebble.addEventListener("webviewclosed", function(e) {
                         options(opts);
                         
                         });
+
 
