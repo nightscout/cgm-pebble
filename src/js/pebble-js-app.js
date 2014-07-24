@@ -5,6 +5,8 @@ TIME_30_MINS = TIME_15_MINS * 2;
 
 var lastAlert = 0;
 var started = new Date( ).getTime( );
+//Enter Name of Person below
+var NameofPerson = "Devin";
 
 var DIRECTIONS = {
     'NONE': 0,
@@ -73,6 +75,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                     readago = now - readingtime;
                     var delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL";
                     if (currentBattery) delta = delta + " " + currentBattery + "%";
+                    delta = delta + "\n" + NameofPerson;
                                         
                     console.log("now: " + now);
                     console.log("readingtime: " + readingtime);
@@ -341,7 +344,7 @@ Pebble.addEventListener("appmessage",
 
 Pebble.addEventListener("showConfiguration", function(e) {
                         console.log("showing configuration", JSON.stringify(e));
-                        Pebble.openURL('http://bewest.github.io/cgm-pebble/configurable.html');
+  Pebble.openURL('http://bewest.github.io/cgm-pebble/configurable.html');
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {
@@ -351,5 +354,8 @@ Pebble.addEventListener("webviewclosed", function(e) {
                         options(opts);
                         
                         });
+
+
+
 
 
