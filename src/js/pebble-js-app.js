@@ -95,7 +95,11 @@ function fetchCgmData(lastReadTime, lastBG) {
                     delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL",
                     readingtime = new Date(response[0].datetime).getTime(),
                     readago = now - readingtime,
-                    currentBattery = response[0].battery;
+
+                    // battery not included in response yet, so have to send no battery for now
+                    // once battery is included, uncomment out line and erase "111" line
+                    //currentBattery = response[0].battery;
+                    currentBattery = "111";
                     
                     // see if we're in a Rajat build
                     var RajatBuild = isRajatBuild(opts.endpoint, "heroku");
