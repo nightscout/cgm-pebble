@@ -45,7 +45,7 @@ function fetchCgmData(lastReadTime, lastBG) {
     //if endpoint is invalid, return error msg to watch
     if (!opts.endpoint) {
         message = {
-            icon: [0,LOGO],
+            icon: LOGO,
             bg: '---',
             readtime: timeago(new Date().getTime() - started),
             alert: 0,
@@ -152,7 +152,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                 // response data is no good; format error message and send to watch                      
                 } else {
                     message = {
-                        icon: [0,LOGO],
+                        icon: LOGO,
                         bg: '---',
                         readtime: timeago(new Date().getTime() - (now)),
                         alert: 1,

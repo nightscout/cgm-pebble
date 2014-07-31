@@ -74,7 +74,7 @@ static const uint32_t SPECIAL_VALUE_ICONS[] = {
 	RESOURCE_ID_IMAGE_BLOOD_DROP,       //1
 	RESOURCE_ID_IMAGE_STOP_LIGHT,       //2
 	RESOURCE_ID_IMAGE_HOURGLASS,        //3
-        RESOURCE_ID_IMAGE_QUESTION_MARKS    //4
+	RESOURCE_ID_IMAGE_QUESTION_MARKS    //4
 };
 
 static const uint32_t CGM_ICONS[] = {		// COMMUNITY Build Order
@@ -82,27 +82,13 @@ static const uint32_t CGM_ICONS[] = {		// COMMUNITY Build Order
 	RESOURCE_ID_IMAGE_UPUP,     //1
 	RESOURCE_ID_IMAGE_UP,       //2
 	RESOURCE_ID_IMAGE_UP45,     //3
-        RESOURCE_ID_IMAGE_FLAT,     //4
+	RESOURCE_ID_IMAGE_FLAT,     //4
 	RESOURCE_ID_IMAGE_DOWN45,   //5
 	RESOURCE_ID_IMAGE_DOWN,     //6
 	RESOURCE_ID_IMAGE_DOWNDOWN, //7
-        RESOURCE_ID_IMAGE_NONE,     //8
-        RESOURCE_ID_IMAGE_NONE,     //9
-        RESOURCE_ID_IMAGE_LOGO      //10
-};
-
-static const uint32_t CGM_ICONS_RAJAT[] = {	// RAJAT Build Order
-	RESOURCE_ID_IMAGE_UPUP,     //0
-	RESOURCE_ID_IMAGE_UP,       //1
-	RESOURCE_ID_IMAGE_UP45,     //2
-	RESOURCE_ID_IMAGE_FLAT,     //3
-        RESOURCE_ID_IMAGE_NONE,     //4
-	RESOURCE_ID_IMAGE_DOWN45,   //5
-	RESOURCE_ID_IMAGE_DOWN,     //6
-	RESOURCE_ID_IMAGE_DOWNDOWN, //7
-        RESOURCE_ID_IMAGE_NONE,     //8
-        RESOURCE_ID_IMAGE_NONE,     //9
-        RESOURCE_ID_IMAGE_LOGO      //10
+	RESOURCE_ID_IMAGE_NONE,     //8
+	RESOURCE_ID_IMAGE_NONE,     //9
+	RESOURCE_ID_IMAGE_LOGO      //10
 };
 
 static const uint32_t BATTLEVEL_ICONS[] = {
@@ -116,8 +102,8 @@ static const uint32_t BATTLEVEL_ICONS[] = {
 	RESOURCE_ID_IMAGE_BATT70,     //7
 	RESOURCE_ID_IMAGE_BATT80,     //8
 	RESOURCE_ID_IMAGE_BATT90,     //9
-        RESOURCE_ID_IMAGE_BATTFULL,   //10
-        RESOURCE_ID_IMAGE_BATTNONE    //11
+	RESOURCE_ID_IMAGE_BATTFULL,   //10
+	RESOURCE_ID_IMAGE_BATTNONE    //11
 };
 
 static void sync_error_callback(DictionaryResult dict_error, AppMessageResult app_message_error, void *context) {
@@ -195,13 +181,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 		   gbitmap_destroy(icon_bitmap);
 		}
 
-                // set the right arrow into the bitmap   
-                if (new_tuple->value->data[0]) {  // will be true if this is a Rajat build
-		   icon_bitmap = gbitmap_create_with_resource(CGM_ICONS_RAJAT[new_tuple->value->data[1]]);
-                } 
-                else {
-		   icon_bitmap = gbitmap_create_with_resource(CGM_ICONS[new_tuple->value->data[1]]);
-                }
+        icon_bitmap = gbitmap_create_with_resource(CGM_ICONS[new_tuple->value->uint8]);
 
 		bitmap_layer_set_bitmap(icon_layer, icon_bitmap);
 		break;
