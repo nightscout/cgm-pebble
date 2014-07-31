@@ -7,6 +7,8 @@ var TIME_5_MINS = 5 * 60 * 1000,
     TIME_15_MINS = 15 * 60 * 1000,
     TIME_30_MINS = TIME_15_MINS * 2;
 
+var LOGO = 10;
+
 var DIRECTIONS = {
     'NONE': 0,
     'DoubleUp': 1,
