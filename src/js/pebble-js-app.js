@@ -7,6 +7,9 @@ var TIME_5_MINS = 5 * 60 * 1000,
     TIME_15_MINS = 15 * 60 * 1000,
     TIME_30_MINS = TIME_15_MINS * 2;
 
+// hard code name of T1D person, for now
+var NameofT1DPerson = "";
+
 var LOGO = 10;
 
 var DIRECTIONS = {
@@ -74,6 +77,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                 console.log('got response', JSON.stringify(response));
 
                 var entries = response.bgs;
+                var now = new Date().getTime();
 
                 // check response data
                 if (entries && entries.length > 0) {
@@ -81,8 +85,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                     // response data is good; send log with response
 
                     // initialize message data
-                    var now = new Date().getTime(),
-                        sinceLastAlert = now - lastAlert,
+                    var sinceLastAlert = now - lastAlert,
                         alertValue = 0,
                         currentBG = entries[0].sgv,
                         currentBGDelta = entries[0].bgdelta,
