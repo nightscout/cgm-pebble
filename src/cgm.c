@@ -4,7 +4,6 @@ static Window *window;
 
 static TextLayer *bg_layer;
 static TextLayer *readtime_layer;
-static TextLayer *datetime_layer;
 static BitmapLayer *icon_layer;
 static TextLayer *message_layer;    // BG DELTA & MESSAGE LAYER
 static TextLayer *time_layer;
@@ -241,7 +240,6 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	case CGM_TIME_NOW:
    	APP_LOG(APP_LOG_LEVEL_INFO, "CGM TIME NOW");
 		draw_date();
-		text_layer_set_text(datetime_layer, new_tuple->value->cstring);
 		break;
 
 	case CGM_DELTA_KEY:
@@ -360,13 +358,6 @@ static void send_cmd(void) {
 
 }
 
-static void timer_callback(void *data) {
-
-	send_cmd();
-	timer = app_timer_register(60000, timer_callback, NULL);
-
-}
-
 static void window_load(Window *window) {
 	Layer *window_layer = window_get_root_layer(window);
 
@@ -384,14 +375,6 @@ static void window_load(Window *window) {
         bitmap_layer_set_background_color(icon_layer, GColorClear);
         layer_add_child(window_layer, bitmap_layer_get_layer(icon_layer));
 
-        // CURRENT APP TIME
-        datetime_layer = text_layer_create(GRect(82, 58, 57, 24));
-        text_layer_set_text_color(datetime_layer, GColorBlack);
-        text_layer_set_background_color(datetime_layer, GColorClear);
-        text_layer_set_font(datetime_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
-        text_layer_set_text_alignment(datetime_layer, GTextAlignmentRight);
-        layer_add_child(window_layer, text_layer_get_layer(datetime_layer));
-
         //BG
         bg_layer = text_layer_create(GRect(0, -5, 95, 47));
         text_layer_set_text_color(bg_layer, GColorBlack);
@@ -401,19 +384,19 @@ static void window_load(Window *window) {
         layer_add_child(window_layer, text_layer_get_layer(bg_layer));
 
         //READ TIME AGO
-        readtime_layer = text_layer_create(GRect(5, 58, 90, 28));
+        readtime_layer = text_layer_create(GRect(0, 58, 144, 28));
         text_layer_set_text_color(readtime_layer, GColorBlack);
         text_layer_set_background_color(readtime_layer, GColorClear);
         text_layer_set_font(readtime_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
-        text_layer_set_text_alignment(readtime_layer, GTextAlignmentLeft);
+        text_layer_set_text_alignment(readtime_layer, GTextAlignmentCenter);
         layer_add_child(window_layer, text_layer_get_layer(readtime_layer));
 
         // T1D NAME
-        t1dname_layer = text_layer_create(GRect(5, 138, 69, 28));
+        t1dname_layer = text_layer_create(GRect(0, 138, 69, 28));
         text_layer_set_text_color(t1dname_layer, GColorWhite);
         text_layer_set_background_color(t1dname_layer, GColorClear);
         text_layer_set_font(t1dname_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
-        text_layer_set_text_alignment(t1dname_layer, GTextAlignmentLeft);
+        text_layer_set_text_alignment(t1dname_layer, GTextAlignmentCenter);
         layer_add_child(window_layer, text_layer_get_layer(t1dname_layer));
 
         // BATTERY LEVEL ICON
@@ -461,7 +444,6 @@ static void window_load(Window *window) {
 
 	app_sync_init(&sync, sync_buffer, sizeof(sync_buffer), initial_values, ARRAY_LENGTH(initial_values), sync_tuple_changed_callback, sync_error_callback, NULL);
 
-	timer = app_timer_register(1000, timer_callback, NULL);
 }
 
 static void window_unload(Window *window) {
@@ -476,7 +458,6 @@ static void window_unload(Window *window) {
         if (batticon_bitmap) {
 		gbitmap_destroy(batticon_bitmap);
 	}
-	text_layer_destroy(datetime_layer);
 	text_layer_destroy(readtime_layer);
 	text_layer_destroy(bg_layer);
 	text_layer_destroy(message_layer);
