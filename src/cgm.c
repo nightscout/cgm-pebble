@@ -34,7 +34,6 @@ static AppSync sync;
 static uint8_t sync_buffer[256];
 static char new_time[124];
 static char last_bg[124];
-static uint8_t icon_array[] = {0,10};
 static uint8_t current_bg = 0;
 
 static const uint32_t const high[] = { 100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100};
@@ -432,14 +431,14 @@ static void window_load(Window *window) {
 
 
 	Tuplet initial_values[] = {
-		TupletBytes(CGM_ICON_KEY, icon_array, 2),
+		TupletInteger(CGM_ICON_KEY, 10),
 		TupletCString(CGM_BG_KEY, ""),
 		TupletCString(CGM_READTIME_KEY, ""),
 		TupletInteger(CGM_ALERT_KEY, 0),
 		TupletCString(CGM_TIME_NOW, ""),
 		TupletCString(CGM_DELTA_KEY, "LOADING..."),
-                TupletCString(CGM_BATTLEVEL_KEY, ""),
-                TupletCString(CGM_T1DNAME_KEY, "")
+		TupletCString(CGM_BATTLEVEL_KEY, ""),
+		TupletCString(CGM_T1DNAME_KEY, "")
 	};
 
 	app_sync_init(&sync, sync_buffer, sizeof(sync_buffer), initial_values, ARRAY_LENGTH(initial_values), sync_tuple_changed_callback, sync_error_callback, NULL);
