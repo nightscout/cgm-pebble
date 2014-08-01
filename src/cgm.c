@@ -30,6 +30,7 @@ static void draw_date() {
 }
 
 static AppSync sync;
+static AppTimer *timer;
 
 static uint8_t sync_buffer[256];
 static char new_time[124];
@@ -357,6 +358,13 @@ static void send_cmd(void) {
 
 }
 
+static void timer_callback(void *data) {
+
+	send_cmd();
+	timer = app_timer_register(60000, timer_callback, NULL);
+
+}
+
 static void window_load(Window *window) {
 	Layer *window_layer = window_get_root_layer(window);
 
@@ -443,6 +451,7 @@ static void window_load(Window *window) {
 
 	app_sync_init(&sync, sync_buffer, sizeof(sync_buffer), initial_values, ARRAY_LENGTH(initial_values), sync_tuple_changed_callback, sync_error_callback, NULL);
 
+	timer = app_timer_register(1000, timer_callback, NULL);
 }
 
 static void window_unload(Window *window) {
@@ -471,7 +480,6 @@ static void window_unload(Window *window) {
 static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Time flies!");
     draw_date();
-    send_cmd();
 }
 
 static void init(void) {
