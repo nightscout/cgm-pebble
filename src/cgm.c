@@ -17,21 +17,20 @@ static char date_text[] = "Wed 13 ";
 static GBitmap *icon_bitmap = NULL;
 static GBitmap *specialvalue_bitmap = NULL;
 static GBitmap *batticon_bitmap = NULL;
- 
+
 static void draw_date() {
 
 	time_t now = time(NULL);
 	struct tm *t = localtime(&now);
 
-        strftime(time_text, sizeof(time_text), "%l:%M", t);
+	strftime(time_text, sizeof(time_text), "%l:%M", t);
 	strftime(date_text, sizeof(date_text), "%a %d", t);
 
-        text_layer_set_text(time_layer, time_text);
+	text_layer_set_text(time_layer, time_text);
 	text_layer_set_text(date_layer, date_text);
 }
 
 static AppSync sync;
-static AppTimer *timer;
 
 static uint8_t sync_buffer[256];
 static char new_time[124];
@@ -186,7 +185,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 		bitmap_layer_set_bitmap(icon_layer, icon_bitmap);
 		break;
 
-	case CGM_BG_KEY:    
+	case CGM_BG_KEY:
    	APP_LOG(APP_LOG_LEVEL_INFO, "BG CURRENT");
 		if (specialvalue_bitmap) {
 		   gbitmap_destroy(specialvalue_bitmap);
@@ -198,34 +197,34 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 
                 // check for special value, if special value, then replace icon and blank BG; else send current BG
                 if ((current_bg == NO_ANTENNA_VALUE) || (current_bg == BAD_RF_VALUE)) {
-                   text_layer_set_text(bg_layer, ""); 
+                   text_layer_set_text(bg_layer, "");
                    specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[0]);
                    bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
                 }
                 else if (current_bg == SENSOR_NOT_CALIBRATED_VALUE) {
-                   text_layer_set_text(bg_layer, ""); 
+                   text_layer_set_text(bg_layer, "");
                    specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[1]);
                    bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
                 }
                 else if (current_bg == STOP_LIGHT_VALUE) {
-                   text_layer_set_text(bg_layer, ""); 
+                   text_layer_set_text(bg_layer, "");
                    specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[2]);
                    bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
                 }
                 else if (current_bg == HOURGLASS_VALUE) {
-                   text_layer_set_text(bg_layer, ""); 
+                   text_layer_set_text(bg_layer, "");
                    specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[3]);
                    bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
                 }
                 else if (current_bg == QUESTION_MARKS_VALUE) {
-                   text_layer_set_text(bg_layer, ""); 
+                   text_layer_set_text(bg_layer, "");
                    specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[4]);
                    bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
                 }
                 else {
 		   text_layer_set_text(bg_layer, new_tuple->value->cstring);
                 }
-                
+
                 break; // break for CGM_BG_KEY
 
 	case CGM_READTIME_KEY:
@@ -249,7 +248,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
    	APP_LOG(APP_LOG_LEVEL_INFO, "DELTA IN BG");
 		text_layer_set_text(message_layer, new_tuple->value->cstring);
 		break;
-    
+
         case CGM_BATTLEVEL_KEY:
    	APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL");
 
@@ -264,13 +263,13 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
                 // get current battery level
                 strncpy(last_battlevel, new_tuple->value->cstring, 4);
                 current_battlevel = atoi(last_battlevel);
-      
+
                 // check for init code or Rajat build (will be 111 if Rajat build)
                 if  ( (strcmp(last_battlevel, "") == 0) || (current_battlevel == 111) ) {
-                   // Init code or Rajat build, can't do battery; set text layer & icon to empty value 
+                   // Init code or Rajat build, can't do battery; set text layer & icon to empty value
                    text_layer_set_text(battlevel_layer, "");
                    batticon_bitmap = gbitmap_create_with_resource(BATTLEVEL_ICONS[11]);
-                   bitmap_layer_set_bitmap(batticon_layer, batticon_bitmap);                   
+                   bitmap_layer_set_bitmap(batticon_layer, batticon_bitmap);
                    break;
                 }
                 else {
@@ -367,7 +366,7 @@ static void timer_callback(void *data) {
 	timer = app_timer_register(60000, timer_callback, NULL);
 
 }
-        
+
 static void window_load(Window *window) {
 	Layer *window_layer = window_get_root_layer(window);
 
@@ -446,7 +445,7 @@ static void window_load(Window *window) {
         text_layer_set_font(date_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
         text_layer_set_text_alignment(date_layer, GTextAlignmentCenter);
         layer_add_child(window_layer, text_layer_get_layer(date_layer));
-        draw_date(); 
+        draw_date();
 
 
 	Tuplet initial_values[] = {
@@ -489,6 +488,12 @@ static void window_unload(Window *window) {
 	//  bitmap_layer_destroy(date_layer);
 }
 
+static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Time flies!");
+    draw_date();
+    send_cmd();
+}
+
 static void init(void) {
 	window = window_create();
 	window_set_background_color(window, GColorBlack);
@@ -502,6 +507,8 @@ static void init(void) {
 
 	const bool animated = true;
 	window_stack_push(window, animated);
+
+    tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
 }
 
 static void deinit(void) {
