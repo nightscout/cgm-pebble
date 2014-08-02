@@ -63,7 +63,7 @@ function fetchCgmData(lastReadTime, lastBG) {
     // call XML
     var req = new XMLHttpRequest();
 
-    console.log('options', opts, opts.endpoint);
+    console.log('options', JSON.stringify(opts));
     req.open('GET', opts.endpoint, true);
     
     req.onload = function(e) {
@@ -142,7 +142,7 @@ function fetchCgmData(lastReadTime, lastBG) {
                         time: formatDate(new Date()),
                         delta: delta,
                         battlevel: currentBattery,
-                        t1dname: NameofT1DPerson
+                        t1dname: opts.customlabel || ''
                     };
                     
                     // send message data to log and to watch
@@ -386,13 +386,14 @@ Pebble.addEventListener("appmessage",
 
 Pebble.addEventListener("showConfiguration", function(e) {
                         console.log("showing configuration", JSON.stringify(e));
-                        Pebble.openURL('http://bewest.github.io/cgm-pebble/configurable.html');
+                        Pebble.openURL('http://nightscout.github.io/cgm-pebble/configurable.html');
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {
                         var opts = e.response.length > 5
                         ? JSON.parse(decodeURIComponent(e.response)): null;
-                        
+
+                        console.log("Received opts: " + JSON.stringify(opts));
                         options(opts);
                         
                         });
