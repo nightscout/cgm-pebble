@@ -49,12 +49,12 @@ function fetchCgmData(lastReadTime, lastBG) {
             bg: '---',
             readtime: timeago(new Date().getTime() - started),
             alert: 0,
-            time: formatDate(new Date()),
+            time: 0,
             delta: 'CHECK ENDPOINT',
             battlevel: "",
             t1dname: ""
         };
-        
+
         console.log("sending message", JSON.stringify(message));
         MessageQueue.sendAppMessage(message);
         return;
@@ -65,14 +65,14 @@ function fetchCgmData(lastReadTime, lastBG) {
 
     console.log('options', JSON.stringify(opts));
     req.open('GET', opts.endpoint, true);
-    
+
     req.onload = function(e) {
 
         if (req.readyState == 4) {
 
             if(req.status == 200) {
 
-                // Load response   
+                // Load response
                 response = JSON.parse(req.responseText);
                 console.log('got response', JSON.stringify(response));
 
@@ -124,39 +124,39 @@ function fetchCgmData(lastReadTime, lastBG) {
                         alertValue = 3;
                     else if (currentBG > 300 && sinceLastAlert > TIME_15_MINS)
                         alertValue = 3;
-                    
+
                     if (alertValue === 0 && readago > TIME_10_MINS && sinceLastAlert > TIME_15_MINS) {
                         alertValue = 1;
                     }
-                    
+
                     if (alertValue > 0) {
                         lastAlert = now;
                     }
-                    
-                    // load message data  
+
+                    // load message data
                     message = {
                         icon: directionToTrend(currentDirection),
                         bg: currentBG,
                         readtime: timeago(new Date().getTime() - (new Date(entries[0].datetime).getTime())),
                         alert: alertValue,
-                        time: formatDate(new Date()),
+                        time: readingtime,
                         delta: delta,
                         battlevel: currentBattery,
                         t1dname: opts.customlabel || ''
                     };
-                    
+
                     // send message data to log and to watch
                     console.log("message: " + JSON.stringify(message));
                     MessageQueue.sendAppMessage(message);
 
-                // response data is no good; format error message and send to watch                      
+                // response data is no good; format error message and send to watch
                 } else {
                     message = {
                         icon: LOGO,
                         bg: '---',
                         readtime: timeago(new Date().getTime() - (now)),
                         alert: 1,
-                        time: formatDate(new Date()),
+                        time: 0,
                         delta: 'DATA OFFLINE',
                         battlevel: "",
                         t1dname: ""
@@ -170,30 +170,6 @@ function fetchCgmData(lastReadTime, lastBG) {
     req.send(null);
 }
 
-// format date hours:minutes; add AM + PM if want
-function formatDate(date) {
-    var minutes = date.getMinutes(),
-    hours = date.getHours() || 12,
-    meridiem = " PM",
-    formatted;
-    
-    if (hours > 12)
-        hours = hours - 12;
-    else if (hours < 12)
-        meridiem = " AM";
- 
-    // don't want AM & PM, so add line with blank
-    // if want to add later, then comment out this line  
-    meridiem = "";
-
-    if (minutes < 10)
-        formatted = hours + ":0" + date.getMinutes() + meridiem;
-    else
-        formatted = hours + ":" + date.getMinutes() + meridiem;
-
-    return formatted;
-}
-
 // format past time difference data
 function timeago(offset) {
     var parts = {},
@@ -201,7 +177,7 @@ function timeago(offset) {
     HOUR = 3600 * 1000,
     DAY = 86400 * 1000,
     WEEK = 604800 * 1000;
-    
+
     if (offset <= MINUTE)              parts = { lablel: 'now' };
     if (offset <= MINUTE * 2)          parts = { label: '1 min ago' };
     else if (offset < (MINUTE * 60))   parts = { value: Math.round(Math.abs(offset / MINUTE)), label: 'min' };
@@ -211,12 +187,12 @@ function timeago(offset) {
     else if (offset < (DAY * 7))       parts = { value: Math.round(Math.abs(offset / DAY)), label: 'dys' };
     else if (offset < (WEEK * 52))     parts = { value: Math.round(Math.abs(offset / WEEK)), label: 'wks' };
     else                               parts = { label: 'BEFORE DX'};
-    
+
     if (parts.value)
         return parts.value + ' ' + parts.label + ' ago';
     else
         return parts.label;
-    
+
 }
 
 // get endpoint for XML request
@@ -232,7 +208,7 @@ function options ( ) {
 
 // message queue-ing to pace calls from C function on watch
 var MessageQueue = (function () {
-                    
+
     var RETRY_MAX = 5;
 
     var queue = [];
@@ -368,7 +344,7 @@ var MessageQueue = (function () {
         }
 
     }
-                    
+
 }());
 
 // pebble specific calls with watch
@@ -395,7 +371,5 @@ Pebble.addEventListener("webviewclosed", function(e) {
 
                         console.log("Received opts: " + JSON.stringify(opts));
                         options(opts);
-                        
+
                         });
-
-
