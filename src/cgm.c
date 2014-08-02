@@ -17,6 +17,7 @@ static GBitmap *icon_bitmap = NULL;
 static GBitmap *specialvalue_bitmap = NULL;
 static GBitmap *batticon_bitmap = NULL;
 
+static last
 static void draw_date() {
 
     time_t now = time(NULL);
@@ -50,14 +51,14 @@ static const uint32_t const alert[] = { 500,200,1000 };
 
 
 enum CgmKey {
-    CGM_ICON_KEY = 0x0,                 // TUPLE_BYTE_ARRAY
-    CGM_BG_KEY = 0x1,                     // TUPLE_CSTRING
+    CGM_ICON_KEY = 0x0,             // TUPLE_BYTE_ARRAY
+    CGM_BG_KEY = 0x1,               // TUPLE_CSTRING
     CGM_READTIME_KEY = 0x2,         // TUPLE_CSTRING
-    CGM_ALERT_KEY = 0x3,                // TUPLE_INT
-    CGM_TIME_NOW = 0x4,                 // TUPLE_CSTRING
-    CGM_DELTA_KEY = 0x5,                // TUPLE_CSTRING
+    CGM_ALERT_KEY = 0x3,            // TUPLE_INT
+    CGM_TIME_NOW = 0x4,             // TUPLE_CSTRING
+    CGM_DELTA_KEY = 0x5,            // TUPLE_CSTRING
     CGM_BATTLEVEL_KEY = 0x6,        // TUPLE_CSTRING
-    CGM_T1DNAME_KEY = 0x7             // TUPLE_CSTRING
+    CGM_T1DNAME_KEY = 0x7           // TUPLE_CSTRING
 };
 
 static const uint8_t NO_ANTENNA_VALUE = 3;
@@ -234,7 +235,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         break;
 
     case CGM_TIME_NOW:
-         APP_LOG(APP_LOG_LEVEL_INFO, "CGM TIME NOW");
+         APP_LOG(APP_LOG_LEVEL_INFO, "CGM TIME NOW: " + new_tuple->value->uint8);
         draw_date();
         break;
 
