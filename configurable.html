@@ -56,7 +56,8 @@
       function saveOptions() {
         $('#status').text('prepping save');
         var options = {
-          'endpoint': $("#endpoint").val()
+          'endpoint': $("#endpoint").val(),
+          'customlabel': $("#customlabel").val()
         }
         try {
           if (window.localStorage && window.localStorage.setItem) {
@@ -117,6 +118,7 @@
         $('#status').text(['has opts', JSON.stringify(opts)].join(' '));
         console.log("opts", JSON.stringify(opts));
         $("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
+        $("#customlabel").val(opts && opts.customlabel ? opts.customlabel : '');
 
       });
     </script>
