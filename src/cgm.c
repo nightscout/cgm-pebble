@@ -17,7 +17,6 @@ static GBitmap *icon_bitmap = NULL;
 static GBitmap *specialvalue_bitmap = NULL;
 static GBitmap *batticon_bitmap = NULL;
 
-static last
 static void draw_date() {
 
     time_t now = time(NULL);
@@ -108,12 +107,19 @@ static const uint32_t BATTLEVEL_ICONS[] = {
 static void sync_error_callback(DictionaryResult dict_error, AppMessageResult app_message_error, void *context) {
     text_layer_set_text(message_layer, "WATCH OFFLINE");
 
-    //        VibePattern pat = {
-    //                .durations = alert,
-    //             .num_segments = ARRAY_LENGTH(alert),
-    //        };
     vibes_double_pulse();
-    //vibes_enqueue_custom_pattern(pat);
+
+    //TODO: when I/we can figure out how to handle the last read timestamp here in the c code
+    //      and be able to build the 'X min ago' we can remove the code below that clears the display
+    //      this was holding up the merge, so I propose that we do it later
+
+    if (icon_bitmap) {
+         gbitmap_destroy(icon_bitmap);
+    }
+
+    text_layer_set_text(bg_layer, "");
+    icon_bitmap = gbitmap_create_with_resource(CGM_ICONS[10]);
+    text_layer_set_text(readtime_layer, "");
 }
 
 static void alert_handler(uint8_t alertValue)
@@ -224,18 +230,18 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         break; // break for CGM_BG_KEY
 
     case CGM_READTIME_KEY:
-         APP_LOG(APP_LOG_LEVEL_INFO, "READ TIME AGO");
+        APP_LOG(APP_LOG_LEVEL_INFO, "READ TIME AGO");
         strncpy(new_time, new_tuple->value->cstring, 124);
         text_layer_set_text(readtime_layer, new_tuple->value->cstring);
         break;
 
     case CGM_ALERT_KEY:
-         APP_LOG(APP_LOG_LEVEL_INFO, "ALERT VIBRATION");
+        APP_LOG(APP_LOG_LEVEL_INFO, "ALERT VIBRATION");
         alert_handler(new_tuple->value->uint8);
         break;
 
     case CGM_TIME_NOW:
-         APP_LOG(APP_LOG_LEVEL_INFO, "CGM TIME NOW: " + new_tuple->value->uint8);
+        APP_LOG(APP_LOG_LEVEL_INFO, "CGM TIME NOW");
         draw_date();
         break;
 
@@ -245,7 +251,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         break;
 
     case CGM_BATTLEVEL_KEY:
-         APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL");
+        APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL");
 
         static uint8_t current_battlevel = 0;
         static char last_battlevel[4];
