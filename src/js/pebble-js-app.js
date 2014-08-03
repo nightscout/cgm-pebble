@@ -92,12 +92,8 @@ function fetchCgmData(lastReadTime, lastBG) {
                         currentDirection = entries[0].direction,
                         delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL",
                         readingtime = new Date(entries[0].datetime).getTime(),
-                        readago = now - readingtime;
-
-                    // battery not included in response yet, so have to send no battery for now
-                    // once battery is included, uncomment out line and erase "111" line
-                    //var currentBattery = response[0].battery;
-                    var currentBattery = "111";
+                        readago = now - readingtime,
+                        currentBattery = entries[0].battery || "111";
 
                     console.log("now: " + now);
                     console.log("readingtime: " + readingtime);
