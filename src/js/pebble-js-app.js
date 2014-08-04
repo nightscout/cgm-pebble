@@ -62,16 +62,26 @@ function fetchCgmData(lastReadTime, lastBG) {
 
     // call XML
     var req = new XMLHttpRequest();
+    req.timeout = 15000;
+    req.ontimeout = function() { MessageQueue.sendAppMessage({alert: 10}); };
 
     console.log('options', JSON.stringify(opts));
     req.open('GET', opts.endpoint, true);
 
+    var myTimeout = setTimeout(function() {
+        req.abort();
+        MessageQueue.sendAppMessage({alert: 10});
+    }, 15000);
+
     req.onload = function(e) {
 
-        if (req.readyState == 4) {
-
-            if(req.status == 200) {
-
+        if (req.readyState != 4) {
+            MessageQueue.sendAppMessage({alert: 10});
+        } else {
+            if(req.status != 200) {
+                MessageQueue.sendAppMessage({alert: 10});
+            } else {
+                clearTimeout(myTimeout);
                 // Load response
                 response = JSON.parse(req.responseText);
                 console.log('got response', JSON.stringify(response));

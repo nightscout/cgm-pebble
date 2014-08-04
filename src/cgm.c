@@ -103,7 +103,7 @@ static const uint32_t BATTLEVEL_ICONS[] = {
     RESOURCE_ID_IMAGE_BATTNONE        //11
 };
 
-static void sync_error_callback(DictionaryResult dict_error, AppMessageResult app_message_error, void *context) {
+static void warn_offline() {
     text_layer_set_text(message_layer, "WATCH OFFLINE");
 
     vibes_double_pulse();
@@ -116,9 +116,24 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
          gbitmap_destroy(icon_bitmap);
     }
 
-    text_layer_set_text(bg_layer, "");
+    text_layer_set_text(bg_layer, "---");
     icon_bitmap = gbitmap_create_with_resource(CGM_ICONS[10]);
-    text_layer_set_text(readtime_layer, "");
+    text_layer_set_text(readtime_layer, "---");
+}
+
+static void sync_error_callback(DictionaryResult dict_error, AppMessageResult app_message_error, void *context) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "App Message: sync_error_callback");
+    warn_offline();
+}
+
+static void in_dropped_handler(AppMessageResult reason, void *context) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "App Message: in_dropped_handler");
+    warn_offline();
+}
+
+static void out_failed_handler(DictionaryIterator *failed, AppMessageResult reason, void *context) {
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "App Message: out_failed_handler");
+    warn_offline();
 }
 
 static void alert_handler(uint8_t alertValue)
@@ -163,6 +178,10 @@ static void alert_handler(uint8_t alertValue)
         //Trend High
 
         //Data Alert
+    case 10:
+        APP_LOG(APP_LOG_LEVEL_DEBUG, "Alert: data failure");
+        warn_offline();
+        break;
 
     }
 
@@ -483,6 +502,9 @@ static void init(void) {
         .load = window_load,
         .unload = window_unload
     });
+
+    app_message_register_inbox_dropped(in_dropped_handler);
+    app_message_register_outbox_failed(out_failed_handler);
 
     app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
 
