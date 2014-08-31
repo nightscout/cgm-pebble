@@ -1,138 +1,166 @@
-var TIME_5_MINS = 5 * 60 * 1000,
-TIME_10_MINS = 10 * 60 * 1000,
-TIME_15_MINS = 15 * 60 * 1000,
-TIME_30_MINS = TIME_15_MINS * 2;
+// main function to retrieve, format, and send cgm data
+function fetchCgmData() {
 
-var lastAlert = 0;
-var started = new Date( ).getTime( );
-//Enter Name of Person below
-var NameofPerson = "Devin";
-
-var DIRECTIONS = {
-    'NONE': 0,
-    'DoubleUp': 1,
-    'SingleUp': 2,
-    'FortyFiveUp': 3,
-    'Flat': 4,
-    'FortyFiveDown': 5,
-    'SingleDown': 6,
-    'DoubleDown': 7,
-    'NOT COMPUTABLE': 8,
-    'RATE OUT OF RANGE': 9
-};
-
-function directionToTrend(direction) {
-    var trend = 8;
-    if (direction in DIRECTIONS) {
-        trend = DIRECTIONS[direction];
-    }
-    return trend;
-}
-
-function fetchCgmData(lastReadTime, lastBG) {
-    
+    // declare local variables for message data
     var response, message;
+
+    //call options & started to get endpoint & start time
     var opts = options( );
+
+    //if endpoint is invalid, return error msg to watch
     if (!opts.endpoint) {
+      
+        // get app time and format
+        var endpointtime = new Date().getTime(),
+        endpointTZdate = new Date(),
+        endpointTZoffset = endpointTZdate.getTimezoneOffset(),
+        formatendpointtime = Math.floor( (endpointtime / 1000) - (endpointTZoffset * 60) ),
+        endpointstring = formatendpointtime.toString();
+      
         message = {
-        icon: 0,
-        bg: '??',
-        readtime: timeago(new Date().getTime() - started),
+        icon: "",
+        bg: " ",
+        readtime: "",
         alert: 0,
-        time: formatDate(new Date()),
-        delta: 'SETTINGS'
+        time: endpointstring,
+        delta: "NO ENDPOINT",
+        battlevel: "",
+        t1dname: ""
         };
         
-        console.log("sending message", JSON.stringify(message));
+        console.log("NO ENDPOINT send message", JSON.stringify(message));
         MessageQueue.sendAppMessage(message);
         return;
     }
+
+    // call XML
     var req = new XMLHttpRequest();
+    //console.log('endpoint: ' + opts.endpoint);
     
-    console.log('options', opts, opts.endpoint);
+    // get cgm data
     req.open('GET', opts.endpoint, true);
     
     req.onload = function(e) {
-        
-        console.log(req.readyState);
+
         if (req.readyState == 4) {
-            console.log(req.status);
+
             if(req.status == 200) {
-                console.log("status: " + req.status);
-                response = JSON.parse(req.responseText);
                 
-                var bgs = response.bgs;
-                if (bgs && bgs.length > 0) {
-                    console.log('got bgs', JSON.stringify(bgs));
-                    
-                    var now = new Date().getTime(),
-                    sinceLastAlert = now - lastAlert,
-                    alertValue = 0,currentBG = bgs[0].sgv,
-                    currentBGDelta = bgs[0].bgdelta,
-                    currentDirection = bgs[0].direction,
-                    currentBattery = bgs[0].battery,
-                    readingtime = new Date(bgs[0].datetime).getTime(),
-                    readago = now - readingtime;
-                    var delta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL";
-                    if (currentBattery) delta = delta + " " + currentBattery + "%";
-                    delta = delta + "\n" + NameofPerson;
-                                        
-                    console.log("now: " + now);
-                    console.log("readingtime: " + readingtime);
-                    console.log("readago: " + readago);
-                    
-                    if (currentBG < 39) {
-                        if (sinceLastAlert > TIME_10_MINS) alertValue = 2;
-                    } else if (currentBG < 55)
-                        alertValue = 2;
-                    else if (currentBG < 60 && currentBGDelta < 0)
-                        alertValue = 2;
-                    else if (currentBG < 70 && sinceLastAlert > TIME_15_MINS)
-                        alertValue = 2;
-                    else if (currentBG < 120 && currentDirection == 'DoubleDown' && sinceLastAlert > TIME_5_MINS)
-                        alertValue = 2;
-                    else if (currentBG == 100 && currentDirection == 'Flat' && sinceLastAlert > TIME_15_MINS) //Perfect Score - a good time to take a picture :)
-                        alertValue = 1;
-                    else if (currentBG > 120 && currentDirection == 'DoubleUp' && sinceLastAlert > TIME_15_MINS)
-                        alertValue = 3;
-                    else if (currentBG > 200 && sinceLastAlert > TIME_30_MINS && currentBGDelta > 0)
-                        alertValue = 3;
-                    else if (currentBG > 250 && sinceLastAlert > TIME_30_MINS)
-                        alertValue = 3;
-                    else if (currentBG > 300 && sinceLastAlert > TIME_15_MINS)
-                        alertValue = 3;
-                    
-                    if (alertValue === 0 && readago > TIME_10_MINS && sinceLastAlert > TIME_15_MINS) {
-                        alertValue = 1;
-                    }
-                    
-                    if (alertValue > 0) {
-                        lastAlert = now;
-                    }
-                    
-                    message = {
-                    icon: directionToTrend(currentDirection),
-                    bg: currentBG,
-                    readtime: timeago(new Date().getTime() - (new Date(bgs[0].datetime).getTime())),
-                    alert: alertValue,
-                    time: formatDate(new Date()),
-                    delta: delta
-                    };
-                    
-                    console.log("message: " + JSON.stringify(message));
-                    MessageQueue.sendAppMessage(message);
-                    
-                } else {
-                    message = {
-                    icon: 0,
-                    bg: '???',
-                    readtime: timeago(new Date().getTime() - (now)),
-                    alert: 1,
-                    time: formatDate(new Date()),
-                    delta: 'offline'
+                // Load response   
+                response = JSON.parse(req.responseText);
+                response = response.bgs;
+                
+                // check response data
+                if (response && response.length > 0) {
+
+                    // response data is good; send log with response 
+                    // console.log('got response', JSON.stringify(response));
+
+                    // initialize message data
+
+                    // get direction arrow and BG
+                    var currentDirection = response[0].direction,
+                    currentBG = response[0].sgv,
+                    //currentBG = "79",
+                    typeBG = opts.radio,
+
+                    // get timezone offset
+                    timezonedate = new Date(),
+                    timezoneoffset = timezonedate.getTimezoneOffset(),
                         
+                    // get CGM time delta and format
+                    readingtime = new Date(response[0].datetime).getTime(),
+                    formatreadtime = Math.floor( (readingtime / 1000) - (timezoneoffset * 60) ),
+                    readtimestring = formatreadtime.toString(),
+
+                    // set alertValue
+                    alertValue = 0,
+
+                    // get app time and format
+                    apptime = new Date().getTime(),
+                    formatapptime = Math.floor( (apptime / 1000) - (timezoneoffset * 60) ),
+                    apptimestring = formatapptime.toString(),    
+                    
+                    // get BG delta and format
+                    currentBGDelta = response[0].bgdelta,
+                    formatBGdelta = "",                    
+
+                    // get battery level
+
+                    currentBattery = response[0].battery,
+
+                    // get name of T1D
+                    NameofT1DPerson = opts.t1name;
+                    
+                    // console.log("Radio Button: " + typeBG);
+                    // console.log("Battery Value: " + currentBattery);
+					// if no battery being sent yet, then send nothing to watch
+          
+                    if (typeof currentBattery == "undefined") {
+                      currentBattery = "";  
+                    }
+                  
+                    if (typeBG == "mmol") {
+						if ( (currentBGDelta < 5) && (currentBGDelta > -5) ) {
+						// only format if valid BG delta; else will send blank to watch
+						formatBGdelta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mmol";
+						}
+                    }
+                    else {
+						if ( (currentBGDelta < 100) && (currentBGDelta > -100) ) {
+							// only format if valid BG delta; else will send blank to watch
+							formatBGdelta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL";
+						}
+                    }
+                  
+                    // debug logs; uncomment when need to debug something
+ 
+                    //console.log("current Direction: " + currentDirection);
+                    //console.log("current BG: " + currentBG);
+                    //console.log("now: " + now);
+                    //console.log("readingtime: " + readingtime);
+                    //console.log("current BG delta: " + currentBGDelta);
+                    //console.log("current Delta: " + delta);              
+                    //console.log("current Battery: " + currentBattery);
+                    
+                    // load message data  
+                    message = {
+                    icon: currentDirection,
+                    bg: currentBG,
+                    readtime: readtimestring,
+                    alert: alertValue,
+                    time: apptimestring,
+                    delta: formatBGdelta,
+                    battlevel: currentBattery,
+                    t1dname: NameofT1DPerson
                     };
-                    console.log("sending message", JSON.stringify(message));
+                    
+                    // send message data to log and to watch
+                    console.log("JS send message: " + JSON.stringify(message));
+                    MessageQueue.sendAppMessage(message);
+
+                // response data is no good; format error message and send to watch                      
+                } else {
+                  
+                    // get app time and format
+                    var offlinetime = new Date().getTime(),
+                    offlineTZdate = new Date(),
+                    offlineTZoffset = offlineTZdate.getTimezoneOffset(),
+                    formatofflinetime = Math.floor( (offlinetime / 1000) - (offlineTZoffset * 60) ),
+                    offlinestring = formatofflinetime.toString();
+                  
+                    message = {
+                    icon: "",
+                    bg: " ",
+                    readtime: "",
+                    alert: 0,
+                    time: offlinestring,
+                    delta: "DATA OFFLINE",
+                    battlevel: "",
+                    t1dname: ""
+                    };
+                  
+                    console.log("DATA OFFLINE JS message", JSON.stringify(message));
                     MessageQueue.sendAppMessage(message);
                 }
             }
@@ -141,49 +169,7 @@ function fetchCgmData(lastReadTime, lastBG) {
     req.send(null);
 }
 
-function formatDate(date) {
-    var minutes = date.getMinutes(),
-    hours = date.getHours() || 12,
-    meridiem = " PM",
-    formatted;
-    
-    if (hours > 12)
-        hours = hours - 12;
-    else if (hours < 12)
-        meridiem = " AM";
-    
-    if (minutes < 10)
-        formatted = hours + ":0" + date.getMinutes() + meridiem;
-    else
-        formatted = hours + ":" + date.getMinutes() + meridiem;
-    
-    return formatted;
-}
-
-function timeago(offset) {
-    var parts = {},
-    MINUTE = 60 * 1000,
-    HOUR = 3600 * 1000,
-    DAY = 86400 * 1000,
-    WEEK = 604800 * 1000;
-    
-    if (offset <= MINUTE)              parts = { lablel: 'now' };
-    if (offset <= MINUTE * 2)          parts = { label: '1 min ago' };
-    else if (offset < (MINUTE * 60))   parts = { value: Math.round(Math.abs(offset / MINUTE)), label: 'mins' };
-    else if (offset < (HOUR * 2))      parts = { label: '1 hr ago' };
-    else if (offset < (HOUR * 24))     parts = { value: Math.round(Math.abs(offset / HOUR)), label: 'hrs' };
-    else if (offset < (DAY * 1))       parts = { label: '1 day ago' };
-    else if (offset < (DAY * 7))       parts = { value: Math.round(Math.abs(offset / DAY)), label: 'day' };
-    else if (offset < (WEEK * 52))     parts = { value: Math.round(Math.abs(offset / WEEK)), label: 'week' };
-    else                               parts = { label: 'a long time ago' };
-    
-    if (parts.value)
-        return parts.value + ' ' + parts.label + ' ago';
-    else
-        return parts.label;
-    
-}
-
+// get endpoint for XML request
 function options ( ) {
     var opts = [ ].slice.call(arguments).pop( );
     if (opts) {
@@ -194,6 +180,7 @@ function options ( ) {
     return opts;
 }
 
+// message queue-ing to pace calls from C function on watch
 var MessageQueue = (function () {
                     
                     var RETRY_MAX = 5;
@@ -330,21 +317,22 @@ var MessageQueue = (function () {
                     
                     }());
 
+// pebble specific calls with watch
 Pebble.addEventListener("ready",
                         function(e) {
-                        console.log("connect: " + e.ready);
-                        //fetchCgmData(0, 0);
+                        "use strict";
+                        console.log("Pebble JS ready");
                         });
 
 Pebble.addEventListener("appmessage",
                         function(e) {
-                        console.log("Received message: " + JSON.stringify(e.payload));
-                        fetchCgmData(e.payload.readtime, e.payload.bg);
+                        console.log("JS Recvd Msg From Watch: " + JSON.stringify(e.payload));
+                        fetchCgmData();
                         });
 
 Pebble.addEventListener("showConfiguration", function(e) {
-                        console.log("showing configuration", JSON.stringify(e));
-  Pebble.openURL('http://bewest.github.io/cgm-pebble/configurable.html');
+                        console.log("Showing Configuration", JSON.stringify(e));
+                        Pebble.openURL('http://m2oore.github.io/cgm-pebble/configurable.html');
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {
@@ -354,6 +342,8 @@ Pebble.addEventListener("webviewclosed", function(e) {
                         options(opts);
                         
                         });
+
+
 
 
 
