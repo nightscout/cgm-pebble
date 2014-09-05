@@ -24,6 +24,7 @@ static GBitmap *batticon_bitmap = NULL;
 
 static AppSync sync;
 static AppTimer *timer = NULL;
+static AppTimer *BT_timer = NULL;
 
 static uint8_t sync_buffer[256];
 static char current_icon[124];
@@ -61,6 +62,9 @@ static bool bighigh_overwrite = false;
 static bool DoubleDownAlert = false;
 static bool OfflineAlert = false;
 static bool BluetoothAlert = false;
+static bool BT_timer_pop = false;
+static bool CGMOffAlert = false;
+static bool PhoneOffAlert = false;
 
 static time_t time_now = 0;
 
@@ -85,6 +89,10 @@ static const uint32_t HOURAGO = 60*(60);
 static const uint32_t DAYAGO = 24*(60*60);
 static const uint32_t WEEKAGO = 7*(24*60*60);
 
+// ** START OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
+// ** FOR MMOL, ALL VALUES ARE STORED AS INTEGER; LAST DIGIT IS USED AS DECIMAL **
+// ** BE EXTRA CAREFUL OF CHANGING SPECIAL VALUES OR TIMERS; DO NOT CHANGE WITHOUT EXPERT HELP **
+
 // BG Ranges, MG/DL
 static const uint8_t const SPECVALUE_BG_MGDL = 20;
 static const uint8_t const HYPOLOW_BG_MGDL = 55;
@@ -95,7 +103,7 @@ static const uint16_t const HIGH_BG_MGDL = 180;
 static const uint16_t const MIDHIGH_BG_MGDL = 240;
 static const uint16_t const BIGHIGH_BG_MGDL = 300;
 
-// BG Ranges, MMOL (IN INT, NOT WITH FLOATING POINT)
+// BG Ranges, MMOL (IN INT, NOT FLOATING POINT, LAST DIGIT IS DECIMAL)
 static const uint8_t const SPECVALUE_BG_MMOL = 11;
 static const uint8_t const HYPOLOW_BG_MMOL = 30;
 static const uint8_t const BIGLOW_BG_MMOL = 33;
@@ -105,12 +113,41 @@ static const uint16_t const HIGH_BG_MMOL = 100;
 static const uint16_t const MIDHIGH_BG_MMOL = 133;
 static const uint16_t const BIGHIGH_BG_MMOL = 166;
 
-// Snooze times
-static const uint8_t const SNOOZE_5MIN = 5;
-static const uint8_t const SNOOZE_10MIN = 10;
-static const uint8_t const SNOOZE_15MIN = 15;
-static const uint8_t const SNOOZE_30MIN = 30;
-//static const uint8_t const SNOOZE_45MIN = 45;
+// BG Snooze Times, in Minutes; controls when vibrate again
+static const uint8_t const SPECVALUE_SNZ_MIN = 30;
+static const uint8_t const HYPOLOW_SNZ_MIN = 5;
+static const uint8_t const BIGLOW_SNZ_MIN = 5;
+static const uint8_t const MIDLOW_SNZ_MIN = 10;
+static const uint8_t const LOW_SNZ_MIN = 15;
+static const uint8_t const HIGH_SNZ_MIN = 30;
+static const uint8_t const MIDHIGH_SNZ_MIN = 30;
+static const uint8_t const BIGHIGH_SNZ_MIN = 30;
+
+// Vibration Levels; 0 = NONE; 1 = LOW; 2 = MEDIUM; 3 = HIGH
+static const uint8_t const SPECVALUE_VIBE = 3;
+static const uint8_t const BIGLOWBG_VIBE = 3;
+static const uint8_t const LOWBG_VIBE = 3;
+static const uint8_t const HIGHBG_VIBE = 3;
+static const uint8_t const BIGHIGHBG_VIBE = 3;
+static const uint8_t const DOUBLEDOWN_VIBE = 3;
+static const uint8_t const WATCHOFFLINE_VIBE = 3;
+static const uint8_t const BTOUT_VIBE = 3;
+static const uint8_t const CGMOUT_VIBE = 3;
+static const uint8_t const PHONEOUT_VIBE = 3;
+
+// Icon Cross Out & Vibrate Once Wait Times, in Minutes
+static const uint8_t const CGMOUT_WAIT_MIN = 10;
+static const uint8_t const PHONEOUT_WAIT_MIN = 5;
+
+// Timer Wait Times, in Seconds
+static const uint8_t const BT_ALERT_WAIT_SECS = 45;
+static const uint8_t const WATCH_MSGSEND_SECS = 60;
+static const uint8_t const LOADING_MSGSEND_SECS = 2;
+
+// Control Vibrations
+static const bool const TurnOffAllVibrations = false;
+
+// ** END OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
 
 enum CgmKey {
 	CGM_ICON_KEY = 0x0,         // TUPLE_CSTRING
@@ -235,7 +272,7 @@ int myAtoi(char *str)
       
         res = res*10 + str[i] - '0';
       
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "RES IN INT: %i", res ); 
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "RES IN INT: %i", res ); 
       
     }
     return res;
@@ -263,9 +300,14 @@ int myBGAtoi(char *str)
 static void alert_handler(uint8_t alertValue)
 {
 
-  // APP_LOG(APP_LOG_LEVEL_INFO, "ALERT HANDLER");
-  // APP_LOG(APP_LOG_LEVEL_DEBUG, "ALERT CODE: %d", alertValue);
+    //APP_LOG(APP_LOG_LEVEL_INFO, "ALERT HANDLER");
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "ALERT CODE: %d", alertValue);
   
+    if (TurnOffAllVibrations) {
+	  //turn off all vibrations is set, return out here
+	  return;
+	}
+	
 	switch (alertValue){
 
 	case 0:
@@ -304,12 +346,45 @@ static void alert_handler(uint8_t alertValue)
 	}
 }
 
+static void BT_timer_callback (void *data);
+
 static void handle_bluetooth(bool bt_connected)
 {
+  //APP_LOG(APP_LOG_LEVEL_INFO, "HANDLE BT: ENTER CODE");
   if (bt_connected == false)
   {
-	// Flag no bluetooth in logs
-    APP_LOG(APP_LOG_LEVEL_INFO, "NO BLUETOOTH");
+	
+	// Check BluetoothAlert for extended Bluetooth outage; if so, do nothing
+	if (BluetoothAlert) {
+      //Already vibrated and set message; out
+	  return;
+	}
+	
+	// Check to see if the BT_timer needs to be set; if BT_timer is not null we're still waiting
+	if (BT_timer == NULL) {
+	  // check to see if timer has popped
+	  if (!BT_timer_pop) {
+	    //set timer
+	    BT_timer = app_timer_register((BT_ALERT_WAIT_SECS*1000), BT_timer_callback, NULL);
+		// have set timer; next time we come through we will see that the timer has popped
+		return;
+	  }
+	}
+	else {
+	  // BT_timer is not null and we're still waiting
+	  return;
+    }
+	
+	// timer has popped
+	// Vibrate; BluetoothAlert takes over until Bluetooth connection comes back on
+	//APP_LOG(APP_LOG_LEVEL_INFO, "BT HANDLER: TIMER POP, NO BLUETOOTH");
+    alert_handler(BTOUT_VIBE);
+    BluetoothAlert = true;
+	
+	// Reset timer pop
+	BT_timer_pop = false;
+	
+    //APP_LOG(APP_LOG_LEVEL_INFO, "NO BLUETOOTH");
   
 	text_layer_set_text(message_layer, "NO BLUETOOTH");
     
@@ -330,20 +405,32 @@ static void handle_bluetooth(bool bt_connected)
 	}
     appicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[2]);
     bitmap_layer_set_bitmap(appicon_layer, appicon_bitmap);
-    
-    // check if need to vibrate
-    if (!BluetoothAlert) {
-      alert_handler(HIGH_ALERT);
-      BluetoothAlert = true;
-    } 
   }	
   else {
 	// Bluetooth is on, reset BluetoothAlert
+    //APP_LOG(APP_LOG_LEVEL_INFO, "HANDLE BT: BLUETOOTH ON");
 	BluetoothAlert = false;
+    if (BT_timer == NULL) {
+      // no timer is set, so need to reset timer pop
+      BT_timer_pop = false;
+    }
   }
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "BluetoothAlert: %i", BluetoothAlert);
+  //APP_LOG(APP_LOG_LEVEL_INFO, "BluetoothAlert: %i", BluetoothAlert);
 } // end handle_bluetooth
+
+static void BT_timer_callback (void *data) {
+
+    //APP_LOG(APP_LOG_LEVEL_INFO, "BT TIMER CALLBACK: ENTER CODE");
+    // Set timer variables
+	BT_timer_pop = true;
+	BT_timer = NULL;
+
+	// check bluetooth and call handler
+	bluetooth_connected = bluetooth_connection_service_peek();
+	handle_bluetooth(bluetooth_connected);
+	
+} // BT_timer_callback
 
 // format current date from app
 static void draw_date_from_app() {
@@ -377,6 +464,13 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
   APP_LOG(APP_LOG_LEVEL_DEBUG, "WO APP ERR CODE: %i RES: %s", app_message_error, translate_app_error(app_message_error));
   APP_LOG(APP_LOG_LEVEL_DEBUG, "WO DICT ERR CODE: %i RES: %s", dict_error, translate_dict_error(dict_error));
 
+  bluetooth_connected = bluetooth_connection_service_peek();
+    
+  if (!bluetooth_connected) {
+    // bluetooth is out, BT message already set; return out
+    return;
+  }
+  
   watchoff_openerr = app_message_outbox_begin(&iter);
   
   if (watchoff_openerr == APP_MSG_OK) {
@@ -401,12 +495,8 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
   bluetooth_connected = bluetooth_connection_service_peek();
     
   if (!bluetooth_connected) {
-	handle_bluetooth(bluetooth_connected);
+    // bluetooth is out, BT message already set; return out
     return;
-  }
-  else {
-	// Bluetooth is on, reset BluetoothAlert
-	BluetoothAlert = false;
   }
     
   // set message to WATCH OFFLINE
@@ -432,7 +522,8 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
 
   // check if need to vibrate
   if (!OfflineAlert) {
-    alert_handler(HIGH_ALERT);
+    //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE ERROR: WATCH OFFLINE");
+    alert_handler(WATCHOFFLINE_VIBE);
 	OfflineAlert = true;
   } 
     
@@ -440,12 +531,12 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
 
 static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tuple, const Tuple* old_tuple, void* context) {
 
-	// APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE");
+	//APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE");
 
 	switch (key) {
 
 	case CGM_ICON_KEY:
-   	// APP_LOG(APP_LOG_LEVEL_INFO, "ICON ARROW");
+   	//APP_LOG(APP_LOG_LEVEL_INFO, "ICON ARROW");
     // if SpecialValue already set, then break
     if (specialvalue_bitmap) {
       break;
@@ -490,7 +581,8 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     }
     else if (strcmp(current_icon, DOUBLEDOWN_ARROW) == 0) {
 		if (!DoubleDownAlert) {
-		  alert_handler(HIGH_ALERT);
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, ARROW ICON: DOUBLE DOWN");
+		  alert_handler(DOUBLEDOWN_VIBE);
 		  DoubleDownAlert = true;
 		}
 		icon_bitmap = gbitmap_create_with_resource(ARROW_ICONS[7]);
@@ -505,7 +597,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 
 	case CGM_BG_KEY:
   
-    // APP_LOG(APP_LOG_LEVEL_INFO, "BG CURRENT");
+    //APP_LOG(APP_LOG_LEVEL_INFO, "BG CURRENT");
   
     if (specialvalue_bitmap) {
       gbitmap_destroy(specialvalue_bitmap);
@@ -516,20 +608,20 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     strncpy(last_bg, new_tuple->value->cstring, 124);
     current_bg = myBGAtoi(last_bg);
     
-    // APP_LOG(APP_LOG_LEVEL_DEBUG, "CurrentBG: %d", current_bg);
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "CurrentBG: %d", current_bg);
     
     // check MMOL value and set current BG correctly
     if ( current_isMMOL == 1 ) {
       // MMOL Value
       current_isMMOL = 1;
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "MMOL, FLAG SHOULD BE ONE: %i", current_isMMOL);
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "LAST MMOL: %s", last_bg);
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT MMOL: %i", current_bg);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "MMOL, FLAG SHOULD BE ONE: %i", current_isMMOL);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LAST MMOL: %s", last_bg);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT MMOL: %i", current_bg);
     }
     else {
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "MGDL, FLAG SHOULD BE ZERO: %i", current_isMMOL);
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "LAST BG: %s", last_bg);
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT BG: %i", current_bg);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "MGDL, FLAG SHOULD BE ZERO: %i", current_isMMOL);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LAST BG: %s", last_bg);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT BG: %i", current_bg);
     }
     
     if (current_isMMOL == 0) {
@@ -544,7 +636,16 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 		  gbitmap_destroy(icon_bitmap);
 		}
         icon_bitmap = gbitmap_create_with_resource(ARROW_ICONS[8]);
-        bitmap_layer_set_bitmap(icon_layer, icon_bitmap);                  
+        bitmap_layer_set_bitmap(icon_layer, icon_bitmap);   
+
+        // check bluetooth
+        bluetooth_connected = bluetooth_connection_service_peek();
+    
+        if (!bluetooth_connected) {
+	      // Bluetooth is out; set BT message
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG INIT: NO BT, SET NO BT MESSAGE");
+		  text_layer_set_text(message_layer, "NO BLUETOOTH");
+        }
         break;
       }
     
@@ -582,16 +683,17 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
 	  // check for SPECIAL VALUE
       if ( ( ((current_bg > 0) && (current_bg < SPECVALUE_BG_MGDL))
-          && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_30MIN)) )
+          && ((lastAlertTime == 0) || (lastAlertTime == SPECVALUE_SNZ_MIN)) )
 		|| ( ((current_bg > 0) && (current_bg <= SPECVALUE_BG_MGDL)) && (!specvalue_overwrite) ) ) {
       
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "SPECIAL VALUE BG ALERT");
+        //APP_LOG(APP_LOG_LEVEL_INFO, "SPECIAL VALUE BG ALERT");
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime IN:  %i", lastAlertTime);
 		//APP_LOG(APP_LOG_LEVEL_DEBUG, "specvalue_overwrite IN:  %i", specvalue_overwrite);
      
 	 // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!specvalue_overwrite)) { 
-          alert_handler(HIGH_ALERT);        
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG: SPECIAL VALUE");
+          alert_handler(SPECVALUE_VIBE);        
           // don't know where we are coming from, so reset last alert time no matter what
 		  // set to 1 to prevent bouncing connection
           lastAlertTime = 1;
@@ -599,7 +701,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         }
       
 	  // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_30MIN) { 
+        if (lastAlertTime == SPECVALUE_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -616,7 +718,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
 	  // check for HYPO LOW BG and not SPECIAL VALUE
       else if ( ( ((current_bg > SPECVALUE_BG_MGDL) && (current_bg <= HYPOLOW_BG_MGDL)) 
-             && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_5MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime == HYPOLOW_SNZ_MIN)) ) 
            || ( ((current_bg > SPECVALUE_BG_MGDL) && (current_bg <= HYPOLOW_BG_MGDL)) && (!hypolow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "HYPO LOW BG ALERT");
@@ -625,13 +727,14 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!hypolow_overwrite)) { 
-          alert_handler(HIGH_ALERT);        
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG: HYPO LOW");
+          alert_handler(BIGLOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!hypolow_overwrite) { hypolow_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_5MIN) { 
+        if (lastAlertTime == HYPOLOW_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -646,7 +749,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	  
       // check for BIG LOW BG
       else if ( ( ((current_bg > HYPOLOW_BG_MGDL) && (current_bg <= BIGLOW_BG_MGDL)) 
-             && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_5MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime == BIGLOW_SNZ_MIN)) ) 
            || ( ((current_bg > HYPOLOW_BG_MGDL) && (current_bg <= BIGLOW_BG_MGDL)) && (!biglow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "BIG LOW BG ALERT");
@@ -655,13 +758,14 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!biglow_overwrite)) { 
-          alert_handler(HIGH_ALERT);        
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG: BIG LOW");
+          alert_handler(BIGLOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!biglow_overwrite) { biglow_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_5MIN) { 
+        if (lastAlertTime == BIGLOW_SNZ_MIN) { 
           lastAlertTime = 0;
 		  specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -676,7 +780,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	 
       // check for MID LOW BG
       else if ( ( ((current_bg > BIGLOW_BG_MGDL) && (current_bg <= MIDLOW_BG_MGDL)) 
-             && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_10MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime == MIDLOW_SNZ_MIN)) ) 
            || ( ((current_bg > BIGLOW_BG_MGDL) && (current_bg <= MIDLOW_BG_MGDL)) && (!midlow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "MID LOW BG ALERT");
@@ -685,13 +789,14 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!midlow_overwrite)) { 
-          alert_handler(HIGH_ALERT);        
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG: MID LOW");
+          alert_handler(LOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!midlow_overwrite) { midlow_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_10MIN) { 
+        if (lastAlertTime == MIDLOW_SNZ_MIN) { 
           lastAlertTime = 0;
 		  specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -706,7 +811,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 
       // check for LOW BG
       else if ( ( ((current_bg > MIDLOW_BG_MGDL) && (current_bg <= LOW_BG_MGDL)) 
-               && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_15MIN)) )
+               && ((lastAlertTime == 0) || (lastAlertTime == LOW_SNZ_MIN)) )
              || ( ((current_bg > MIDLOW_BG_MGDL) && (current_bg <= LOW_BG_MGDL)) && (!low_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOW BG ALERT");
@@ -715,13 +820,14 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!low_overwrite)) { 
-          alert_handler(HIGH_ALERT); 
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG: LOW");
+          alert_handler(LOWBG_VIBE); 
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!low_overwrite) { low_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_15MIN) {
+        if (lastAlertTime == LOW_SNZ_MIN) {
           lastAlertTime = 0; 
 		  specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -736,19 +842,20 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
       // check for HIGH BG
       else if ( ((current_bg >= HIGH_BG_MGDL) && (current_bg < MIDHIGH_BG_MGDL)) 
-             && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_30MIN)) ) {
+             && ((lastAlertTime == 0) || (lastAlertTime == HIGH_SNZ_MIN)) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "HIGH BG ALERT");    
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime IN:  %i", lastAlertTime);   
       
         // send alert and handle a bouncing connection
         if (lastAlertTime == 0) { 
-          alert_handler(HIGH_ALERT);
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG: HIGH");
+          alert_handler(HIGHBG_VIBE);
           lastAlertTime = 1;
         }
        
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_30MIN) {
+        if (lastAlertTime == HIGH_SNZ_MIN) {
           lastAlertTime = 0; 
         } 
        
@@ -757,7 +864,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
       // check for MID HIGH BG
       else if ( ( ((current_bg >= MIDHIGH_BG_MGDL) && (current_bg < BIGHIGH_BG_MGDL)) 
-               && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_30MIN)) )
+               && ((lastAlertTime == 0) || (lastAlertTime == MIDHIGH_SNZ_MIN)) )
              || ( ((current_bg >= MIDHIGH_BG_MGDL) && (current_bg < BIGHIGH_BG_MGDL)) && (!midhigh_overwrite) ) ) {  
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "MID HIGH BG ALERT");
@@ -766,13 +873,14 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!midhigh_overwrite)) { 
-          alert_handler(HIGH_ALERT);
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG: MID HIGH");
+          alert_handler(HIGHBG_VIBE);
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!midhigh_overwrite) { midhigh_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_30MIN) { 
+        if (lastAlertTime == MIDHIGH_SNZ_MIN) { 
           lastAlertTime = 0; 
           specvalue_overwrite = false;
 		  midhigh_overwrite = false;
@@ -785,7 +893,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
   
       // check for BIG HIGH BG
       else if ( ( (current_bg >= BIGHIGH_BG_MGDL) 
-               && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_30MIN)) )
+               && ((lastAlertTime == 0) || (lastAlertTime == BIGHIGH_SNZ_MIN)) )
                || ((current_bg >= BIGHIGH_BG_MGDL) && (!bighigh_overwrite)) ) {   
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "BIG HIGH BG ALERT");
@@ -794,13 +902,14 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!bighigh_overwrite)) {
-          alert_handler(HIGH_ALERT);
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG: BIG HIGH");
+          alert_handler(BIGHIGHBG_VIBE);
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!bighigh_overwrite) { bighigh_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_30MIN) { 
+        if (lastAlertTime == BIGHIGH_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;		  
           midhigh_overwrite = false;
@@ -815,8 +924,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       else if ( ((current_bg > LOW_BG_MGDL) && (current_bg < HIGH_BG_MGDL)) 
               || (current_bg <= 0) ) {
       
-       alert_handler(NO_ALERT);
-        // reset snooze counter
+        // do nothing; just reset snooze counter
         lastAlertTime = 0;
       }
       
@@ -834,7 +942,16 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 		   gbitmap_destroy(icon_bitmap);
 		}
         icon_bitmap = gbitmap_create_with_resource(ARROW_ICONS[8]);
-        bitmap_layer_set_bitmap(icon_layer, icon_bitmap);                  
+        bitmap_layer_set_bitmap(icon_layer, icon_bitmap); 
+
+		// check bluetooth
+        bluetooth_connected = bluetooth_connection_service_peek();
+    
+        if (!bluetooth_connected) {
+	      // Bluetooth is out; set BT message
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG INIT: NO BT, SET NO BT MESSAGE");
+		  text_layer_set_text(message_layer, "NO BLUETOOTH");
+        }
         break;
       }
     
@@ -872,16 +989,16 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
       // check for SPECIAL VALUE
       if ( ( ((current_bg > 0) && (current_bg < SPECVALUE_BG_MMOL))
-          && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_30MIN)) )
+          && ((lastAlertTime == 0) || (lastAlertTime == SPECVALUE_SNZ_MIN)) )
 		|| ( ((current_bg > 0) && (current_bg <= SPECVALUE_BG_MMOL)) && (!specvalue_overwrite) ) ) {
       
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "SPECIAL VALUE BG ALERT");
+        //APP_LOG(APP_LOG_LEVEL_INFO, "SPECIAL VALUE BG ALERT");
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime IN:  %i", lastAlertTime);
 		//APP_LOG(APP_LOG_LEVEL_DEBUG, "specvalue_overwrite IN:  %i", specvalue_overwrite);
      
 	 // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!specvalue_overwrite)) { 
-          alert_handler(HIGH_ALERT); 
+          alert_handler(SPECVALUE_VIBE); 
 		  // don't know where we are coming from, so reset last alert time no matter what
 		  // set to 1 to prevent bouncing connection
           lastAlertTime = 1;
@@ -889,7 +1006,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         }
       
 	  // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_30MIN) { 
+        if (lastAlertTime == SPECVALUE_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -906,7 +1023,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	  
 	  // check for HYPO LOW BG and not SPECIAL VALUE
       else if ( ( ((current_bg > SPECVALUE_BG_MMOL) && (current_bg <= HYPOLOW_BG_MMOL)) 
-             && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_5MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime == HYPOLOW_SNZ_MIN)) ) 
            || ( ((current_bg > SPECVALUE_BG_MMOL) && (current_bg <= HYPOLOW_BG_MMOL)) && (!hypolow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "HYPO LOW BG ALERT");
@@ -915,13 +1032,13 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!hypolow_overwrite)) { 
-          alert_handler(HIGH_ALERT);        
+          alert_handler(BIGLOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!hypolow_overwrite) { hypolow_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_5MIN) { 
+        if (lastAlertTime == HYPOLOW_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -936,7 +1053,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	  
       // check for BIG LOW BG
       else if ( ( ((current_bg > HYPOLOW_BG_MMOL) && (current_bg <= BIGLOW_BG_MMOL)) 
-             && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_5MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime == BIGLOW_SNZ_MIN)) ) 
            || ( ((current_bg > HYPOLOW_BG_MMOL) && (current_bg <= BIGLOW_BG_MMOL)) && (!biglow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "BIG LOW BG ALERT");
@@ -945,13 +1062,13 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!biglow_overwrite)) { 
-          alert_handler(HIGH_ALERT);        
+          alert_handler(BIGLOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!biglow_overwrite) { biglow_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_5MIN) { 
+        if (lastAlertTime == BIGLOW_SNZ_MIN) { 
           lastAlertTime = 0;
 		  specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -966,7 +1083,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	 
       // check for MID LOW BG
       else if ( ( ((current_bg > BIGLOW_BG_MMOL) && (current_bg <= MIDLOW_BG_MMOL)) 
-             && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_10MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime == MIDLOW_SNZ_MIN)) ) 
            || ( ((current_bg > BIGLOW_BG_MMOL) && (current_bg <= MIDLOW_BG_MMOL)) && (!midlow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "MID LOW BG ALERT");
@@ -975,13 +1092,13 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!midlow_overwrite)) { 
-          alert_handler(HIGH_ALERT);        
+          alert_handler(LOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!midlow_overwrite) { midlow_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_10MIN) { 
+        if (lastAlertTime == MIDLOW_SNZ_MIN) { 
           lastAlertTime = 0;
 		  specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -997,7 +1114,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	 
       // check for LOW BG
       else if ( ( ((current_bg > MIDLOW_BG_MMOL) && (current_bg <= LOW_BG_MMOL)) 
-               && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_15MIN)) )
+               && ((lastAlertTime == 0) || (lastAlertTime == LOW_SNZ_MIN)) )
              || ( ((current_bg > MIDLOW_BG_MMOL) && (current_bg <= LOW_BG_MMOL)) && (!low_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOW BG ALERT");
@@ -1006,13 +1123,13 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!low_overwrite)) { 
-          alert_handler(HIGH_ALERT); 
+          alert_handler(LOWBG_VIBE); 
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!low_overwrite) { low_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_15MIN) {
+        if (lastAlertTime == LOW_SNZ_MIN) {
           lastAlertTime = 0; 
 		  specvalue_overwrite = false;
 		  hypolow_overwrite = false;
@@ -1027,19 +1144,19 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
       // check for HIGH BG
       else if ( ((current_bg >= HIGH_BG_MMOL) && (current_bg < MIDHIGH_BG_MMOL)) 
-             && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_30MIN)) ) {
+             && ((lastAlertTime == 0) || (lastAlertTime == HIGH_SNZ_MIN)) ) {
       
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "HIGH BG ALERT");    
+        //APP_LOG(APP_LOG_LEVEL_INFO, "HIGH BG ALERT");    
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime IN:  %i", lastAlertTime);   
       
         // send alert and handle a bouncing connection
         if (lastAlertTime == 0) { 
-          alert_handler(HIGH_ALERT);
+          alert_handler(HIGHBG_VIBE);
           lastAlertTime = 1;
         }
        
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_30MIN) {
+        if (lastAlertTime == HIGH_SNZ_MIN) {
           lastAlertTime = 0; 
         } 
        
@@ -1048,7 +1165,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
       // check for MID HIGH BG
       else if ( ( ((current_bg >= MIDHIGH_BG_MMOL) && (current_bg < BIGHIGH_BG_MMOL)) 
-               && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_30MIN)) )
+               && ((lastAlertTime == 0) || (lastAlertTime == MIDHIGH_SNZ_MIN)) )
              || ( ((current_bg >= MIDHIGH_BG_MMOL) && (current_bg < BIGHIGH_BG_MMOL)) && (!midhigh_overwrite) ) ) {  
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "MID HIGH BG ALERT");
@@ -1057,13 +1174,13 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!midhigh_overwrite)) { 
-          alert_handler(HIGH_ALERT);
+          alert_handler(HIGHBG_VIBE);
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!midhigh_overwrite) { midhigh_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_30MIN) { 
+        if (lastAlertTime == MIDHIGH_SNZ_MIN) { 
           lastAlertTime = 0; 
           specvalue_overwrite = false;
 		  midhigh_overwrite = false;
@@ -1076,7 +1193,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
   
       // check for BIG HIGH BG
       else if ( ( (current_bg >= BIGHIGH_BG_MMOL) 
-              && ((lastAlertTime == 0) || (lastAlertTime == SNOOZE_30MIN)) )
+              && ((lastAlertTime == 0) || (lastAlertTime == BIGHIGH_SNZ_MIN)) )
               || ((current_bg >= BIGHIGH_BG_MMOL) && (!bighigh_overwrite)) ) {   
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "BIG HIGH BG ALERT");
@@ -1085,13 +1202,13 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!bighigh_overwrite)) {
-          alert_handler(HIGH_ALERT);
+          alert_handler(BIGHIGHBG_VIBE);
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!bighigh_overwrite) { bighigh_overwrite = true; }
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SNOOZE_30MIN) { 
+        if (lastAlertTime == BIGHIGH_SNZ_MIN) { 
           lastAlertTime = 0; 
           specvalue_overwrite = false;
 		  midhigh_overwrite = false;
@@ -1106,19 +1223,18 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       else if ( ((current_bg > LOW_BG_MMOL) && (current_bg < HIGH_BG_MMOL)) 
               || (current_bg <= 0) ) {
       
-        alert_handler(NO_ALERT);
-        // reset snooze counter
+        // do nothing, just reset snooze counter
         lastAlertTime = 0;
       }      
     } // end else MMOL
       
-    // APP_LOG(APP_LOG_LEVEL_INFO, "ALERT FROM BG");
-    // APP_LOG(APP_LOG_LEVEL_DEBUG, "ALERT CODE FROM BG: %d", lastAlertTime);
+    //APP_LOG(APP_LOG_LEVEL_INFO, "ALERT FROM BG");
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "ALERT CODE FROM BG: %d", lastAlertTime);
     
     break; // break for CGM_BG_KEY
 
 	case CGM_READTIME_KEY:
-   	// APP_LOG(APP_LOG_LEVEL_INFO, "READ CGM TIME");
+   	//APP_LOG(APP_LOG_LEVEL_INFO, "READ CGM TIME");
     
     if (cgmicon_bitmap) {
 	  gbitmap_destroy(cgmicon_bitmap);
@@ -1129,11 +1245,11 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
     strncpy(new_cgm_time, new_tuple->value->cstring, 124);
     
-    // APP_LOG(APP_LOG_LEVEL_DEBUG, "NEW CGM TIME: %s", new_cgm_time);
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "NEW CGM TIME: %s", new_cgm_time);
     
     if (strcmp(new_cgm_time, "") == 0) {     
       // Init code or error code; set text layer & icon to empty value 
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CGM TIME AGO INIT OR ERROR CODE: %s", label_buffer);
+      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CGM TIME AGO INIT OR ERROR CODE: %s", cgm_label_buffer);
       text_layer_set_text(cgmtime_layer, "");
       cgmicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[0]);
       bitmap_layer_set_bitmap(cgmicon_layer, cgmicon_bitmap);                   
@@ -1146,14 +1262,14 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       current_cgm_time = atol(new_cgm_time);
       time_now = time(NULL);
       
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT CGM TIME: %lu", current_cgm_time);
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "TIME NOW IN CGM: %lu", time_now);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT CGM TIME: %lu", current_cgm_time);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "TIME NOW IN CGM: %lu", time_now);
         
       current_cgm_timeago = abs(time_now - current_cgm_time);
         
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT CGM TIMEAGO: %lu", current_cgm_timeago);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT CGM TIMEAGO: %lu", current_cgm_timeago);
       
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CGM TIME AGO LABEL IN: %s", label_buffer);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CGM TIME AGO LABEL IN: %s", cgm_label_buffer);
       
       if (current_cgm_timeago < MINUTEAGO) {
         cgm_timeago_diff = 0;
@@ -1189,28 +1305,40 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       text_layer_set_text(cgmtime_layer, formatted_cgm_timeago);
           
       // check to see if we need to show receiver off icon
-      if ( (cgm_timeago_diff > 6) || ( (strcmp(cgm_label_buffer, "") != 0) && (strcmp(cgm_label_buffer, "m") != 0) ) ) {
-        // APP_LOG(APP_LOG_LEVEL_DEBUG, "SET PHONE OFF ICON: %s", label_buffer);
+      if ( (cgm_timeago_diff >= CGMOUT_WAIT_MIN) || ( (strcmp(cgm_label_buffer, "") != 0) && (strcmp(cgm_label_buffer, "m") != 0) ) ) {
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "SET PHONE OFF ICON, CGM TIMEAGO: %d", cgm_timeago_diff);
+		//APP_LOG(APP_LOG_LEVEL_DEBUG, "SET PHONE OFF ICON, LABEL: %s", cgm_label_buffer);
 		if (cgmicon_bitmap) {
 		  gbitmap_destroy(cgmicon_bitmap);
 		}
         cgmicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[4]);
         bitmap_layer_set_bitmap(cgmicon_layer, cgmicon_bitmap);
-      }
+		
+		// Vibrate if we need to
+		if ((!CGMOffAlert) && (!PhoneOffAlert)) {
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, CGM TIMEAGO: TURN CGM ICON OFF");
+		  alert_handler(CGMOUT_VIBE);
+		  CGMOffAlert = true;
+		}
+	  }
+	  else {
+	    // reset CGMOffAlert
+        CGMOffAlert = false;
+      }		
     }
     
-    // APP_LOG(APP_LOG_LEVEL_DEBUG, "CGM TIME AGO LABEL OUT: %s", label_buffer);
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "CGM TIME AGO LABEL OUT: %s", cgm_label_buffer);
     
     break;
 
 	case CGM_ALERT_KEY:
-	// APP_LOG(APP_LOG_LEVEL_INFO, "ALERT FROM PEBBLE");
+	//APP_LOG(APP_LOG_LEVEL_INFO, "ALERT FROM PEBBLE");
 	
 	alert_handler(new_tuple->value->uint8);
 	break;
 
 	case CGM_TIME_NOW:;
-	// APP_LOG(APP_LOG_LEVEL_INFO, "READ APP TIME NOW");
+	//APP_LOG(APP_LOG_LEVEL_INFO, "READ APP TIME NOW");
 	  
 	draw_date_from_app();
     
@@ -1223,7 +1351,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	
     strncpy(new_app_time, new_tuple->value->cstring, 124);
     
-    // APP_LOG(APP_LOG_LEVEL_DEBUG, "NEW APP TIME: %s", new_app_time);
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "NEW APP TIME: %s", new_app_time);
     
     // check for init or error code
     if (strcmp(new_app_time, "") == 0) {   
@@ -1239,12 +1367,12 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       current_app_time = atol(new_app_time);    
       time_now = time(NULL);
       
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT APP TIME: %lu", current_app_time);
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "TIME NOW IN APP: %lu", time_now);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT APP TIME: %lu", current_app_time);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "TIME NOW IN APP: %lu", time_now);
       
       current_app_timeago = abs(time_now - current_app_time);
       
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT APP TIMEAGO: %lu", current_app_timeago);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT APP TIMEAGO: %lu", current_app_timeago);
       
       if (current_app_timeago < (MINUTEAGO)) {
         app_timeago_diff = 0;
@@ -1275,7 +1403,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       text_layer_set_text(time_app_layer, formatted_app_timeago);
       
       // check to see if we need to set phone off icon
-      if ( (app_timeago_diff > 1) || ( (strcmp(app_label_buffer, "") != 0) && (strcmp(app_label_buffer, "m") != 0) ) ) {
+      if ( (app_timeago_diff >= PHONEOUT_WAIT_MIN) || ( (strcmp(app_label_buffer, "") != 0) && (strcmp(app_label_buffer, "m") != 0) ) ) {
 		if (appicon_bitmap) {
 		  gbitmap_destroy(appicon_bitmap);
 		}	  
@@ -1291,22 +1419,50 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 		}	  
         cgmicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[0]);
         bitmap_layer_set_bitmap(cgmicon_layer, cgmicon_bitmap);
-      }
+		
+		// Vibrate if we need to
+		if (!PhoneOffAlert) {
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, APP TIMEAGO: TURN CGM & PHONE ICON OFF");
+		  alert_handler(PHONEOUT_VIBE);
+		  PhoneOffAlert = true;
+		}
+	  }
+	  else {
+	    // reset PhoneOffAlert
+        PhoneOffAlert = false;
+      }		
    
     }  
     
     break;
 
 	case CGM_DELTA_KEY:
-   	// APP_LOG(APP_LOG_LEVEL_INFO, "DELTA IN BG");
-	text_layer_set_text(message_layer, new_tuple->value->cstring);
+   	//APP_LOG(APP_LOG_LEVEL_INFO, "DELTA IN BG");
+	
+	// check bluetooth connection
+	bluetooth_connected = bluetooth_connection_service_peek();
     
-    // If no bluetooth, set that message instead
-    handle_bluetooth(bluetooth_connection_service_peek());
+    if (!bluetooth_connected) {
+	  // Bluetooth is out; BT message already set, so break
+	  break;
+    }
+    
+	if (PhoneOffAlert) {
+	  text_layer_set_text(message_layer, "CHECK PHONE");
+      break;	
+	}
+	
+	if (CGMOffAlert) {
+	  text_layer_set_text(message_layer, "CHECK CGM");
+      break;	
+	}
+	
+	// Bluetooth is good, Phone is good, CGM connection is good, set delta BG message
+	text_layer_set_text(message_layer, new_tuple->value->cstring);
 	break;
     
     case CGM_BATTLEVEL_KEY:;
-   	// APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL");
+   	//APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL");
 
     static uint8_t current_battlevel = 0;
     static char last_battlevel[4];
@@ -1383,7 +1539,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     break; // break for CGM_BATTLEVEL_KEY
 
     case CGM_T1DNAME_KEY:
-    // APP_LOG(APP_LOG_LEVEL_INFO, "T1D NAME");
+    //APP_LOG(APP_LOG_LEVEL_INFO, "T1D NAME");
     text_layer_set_text(t1dname_layer, new_tuple->value->cstring);
     break;
 
@@ -1397,11 +1553,11 @@ static void send_cmd(void) {
   static AppMessageResult sendcmd_openerr = APP_MSG_OK;
   static AppMessageResult sendcmd_senderr = APP_MSG_OK;
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD IN, ABOUT TO OPEN APP MSG OUTBOX");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD IN, ABOUT TO OPEN APP MSG OUTBOX");
   
   sendcmd_openerr = app_message_outbox_begin(&iter);
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD, MSG OUTBOX OPEN, CHECK FOR ERROR");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD, MSG OUTBOX OPEN, CHECK FOR ERROR");
           
   if (sendcmd_openerr != APP_MSG_OK) {
      APP_LOG(APP_LOG_LEVEL_INFO, "WATCH SENDCMD OPEN ERROR");
@@ -1410,7 +1566,7 @@ static void send_cmd(void) {
     return;
   }
 
-  // APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD, MSG OUTBOX OPEN, NO ERROR, ABOUT TO SEND MSG TO APP");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD, MSG OUTBOX OPEN, NO ERROR, ABOUT TO SEND MSG TO APP");
   
   sendcmd_senderr = app_message_outbox_send();
   
@@ -1419,21 +1575,21 @@ static void send_cmd(void) {
      APP_LOG(APP_LOG_LEVEL_DEBUG, "WATCH SENDCMD SEND ERR CODE: %i RES: %s", sendcmd_senderr, translate_app_error(sendcmd_senderr));
   }
 
-  // APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD OUT, SENT MSG TO APP");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD OUT, SENT MSG TO APP");
   
 } // end send_cmd
 
 static void timer_callback(void *data) {
 
-  // APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK IN, TIMER POP, ABOUT TO CALL SEND CMD");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK IN, TIMER POP, ABOUT TO CALL SEND CMD");
   
   send_cmd();
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK, SEND CMD DONE, ABOUT TO REGISTER TIMER");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK, SEND CMD DONE, ABOUT TO REGISTER TIMER");
   
-  timer = app_timer_register(60000, timer_callback, NULL);
+  timer = app_timer_register((WATCH_MSGSEND_SECS*1000), timer_callback, NULL);
 
-  // APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK, REGISTER TIMER DONE");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK, REGISTER TIMER DONE");
   
 } // end timer_callback
 
@@ -1468,7 +1624,7 @@ static void handle_minute_tick(struct tm* tick_time, TimeUnits units_changed) {
 
 static void window_load(Window *window) {
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD");
   
   Layer *window_layer = window_get_root_layer(window);
   
@@ -1560,7 +1716,7 @@ static void window_load(Window *window) {
   text_layer_set_text_alignment(date_app_layer, GTextAlignmentCenter);
   draw_date_from_app();
   layer_add_child(window_layer, text_layer_get_layer(date_app_layer));
-
+  
   Tuplet initial_values[] = {
     TupletCString(CGM_ICON_KEY, ""),
 	TupletCString(CGM_BG_KEY, " "),
@@ -1572,21 +1728,21 @@ static void window_load(Window *window) {
 	TupletCString(CGM_T1DNAME_KEY, "")
   };
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, ABOUT TO CALL APP SYNC INIT");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, ABOUT TO CALL APP SYNC INIT");
   
   app_sync_init(&sync, sync_buffer, sizeof(sync_buffer), initial_values, ARRAY_LENGTH(initial_values), sync_tuple_changed_callback, sync_error_callback, NULL);
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, APP INIT DONE, ABOUT TO REGISTER TIMER");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, APP INIT DONE, ABOUT TO REGISTER TIMER");
   
-  timer = app_timer_register(1000, timer_callback, NULL);
+  timer = app_timer_register((LOADING_MSGSEND_SECS*1000), timer_callback, NULL);
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, TIMER REGISTER DONE");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, TIMER REGISTER DONE");
   
 } // end window_load
 
 static void window_unload(Window *window) {
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD IN");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD IN");
   
   app_sync_deinit(&sync);
 
@@ -1628,13 +1784,13 @@ static void window_unload(Window *window) {
 
   text_layer_destroy(date_app_layer);
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD OUT");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD OUT");
   
 } // end window_unload
 
 static void init(void) {
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE IN");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE IN");
   
   // subscribe to the tick timer service
   tick_timer_service_subscribe(MINUTE_UNIT, &handle_minute_tick);
@@ -1651,22 +1807,22 @@ static void init(void) {
 	.unload = window_unload  
   });
 
-  // APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, ABOUT TO CALL APP MSG OPEN");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, ABOUT TO CALL APP MSG OPEN");
   
   app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
 
-  // APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, APP MSG OPEN DONE");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, APP MSG OPEN DONE");
   
   const bool animated = true;
   window_stack_push(window, animated);
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE OUT");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE OUT");
   
 }  // end init
 
 static void deinit(void) {
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "DE-INIT CODE IN");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DE-INIT CODE IN");
   
   // unsubscribe to the tick timer service
   tick_timer_service_unsubscribe();
@@ -1677,7 +1833,7 @@ static void deinit(void) {
   // destroy the window
   window_destroy(window);
   
-  // APP_LOG(APP_LOG_LEVEL_INFO, "DE-INIT CODE OUT");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DE-INIT CODE OUT");
   
 } // end deinit
 
