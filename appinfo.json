@@ -12,8 +12,8 @@
     "capabilities": [
         "configurable"
     ],
-    "companyName": "Dexterity",
-    "longName": "CGM In The Cloud",
+    "companyName": "Nighscout contributors",
+    "longName": "NIGHTSCOUT",
     "projectType": "native",
     "resources": {
         "media": [
@@ -176,8 +176,8 @@
         ]
     },
     "shortName": "CGM",
-    "uuid": "51bc65c4-4524-4e64-9c22-0fa6ac4edd38",
-    "versionCode": 7,
+    "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
+    "versionCode": 9,
     "versionLabel": "4.2",
     "watchapp": {
         "watchface": true
