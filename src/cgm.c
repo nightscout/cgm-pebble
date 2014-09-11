@@ -93,27 +93,41 @@ static const uint32_t WEEKAGO = 7*(24*60*60);
 // ** FOR MMOL, ALL VALUES ARE STORED AS INTEGER; LAST DIGIT IS USED AS DECIMAL **
 // ** BE EXTRA CAREFUL OF CHANGING SPECIAL VALUES OR TIMERS; DO NOT CHANGE WITHOUT EXPERT HELP **
 
+// FOR BG RANGES
+// DO NOT SET ANY BG RANGES EQUAL TO ANOTHER; LOW CAN NOT EQUAL MIDLOW
+// LOW BG RANGES MUST BE IN ASCENDING ORDER; SPECVALUE < HYPOLOW < BIGLOW < MIDLOW < LOW
+// HIGH BG RANGES MUST BE IN ASCENDING ORDER; HIGH < MIDHIGH < BIGHIGH
+// DO NOT ADJUST SPECVALUE UNLESS YOU HAVE A VERY GOOD REASON
+// DO NOT USE NEGATIVE NUMBERS OR DECIMAL POINTS OR ANYTHING OTHER THAN A NUMBER
+
 // BG Ranges, MG/DL
 static const uint8_t const SPECVALUE_BG_MGDL = 20;
 static const uint8_t const HYPOLOW_BG_MGDL = 55;
 static const uint8_t const BIGLOW_BG_MGDL = 60;
 static const uint8_t const MIDLOW_BG_MGDL = 70;
 static const uint8_t const LOW_BG_MGDL = 80;
+
 static const uint16_t const HIGH_BG_MGDL = 180;
 static const uint16_t const MIDHIGH_BG_MGDL = 240;
 static const uint16_t const BIGHIGH_BG_MGDL = 300;
 
-// BG Ranges, MMOL (IN INT, NOT FLOATING POINT, LAST DIGIT IS DECIMAL)
+// BG Ranges, MMOL
+// VALUES ARE IN INT, NOT FLOATING POINT, LAST DIGIT IS DECIMAL
+// FOR EXAMPLE : SPECVALUE IS 1.1, BIGHIGH IS 16.6
+// ALWAYS USE ONE AND ONLY ONE DECIMAL POINT FOR LAST DIGIT
+// GOOD : 5.0, 12.2 // BAD : 7 , 14.44
 static const uint8_t const SPECVALUE_BG_MMOL = 11;
 static const uint8_t const HYPOLOW_BG_MMOL = 30;
 static const uint8_t const BIGLOW_BG_MMOL = 33;
 static const uint8_t const MIDLOW_BG_MMOL = 39;
 static const uint8_t const LOW_BG_MMOL = 44;
+
 static const uint16_t const HIGH_BG_MMOL = 100;
 static const uint16_t const MIDHIGH_BG_MMOL = 133;
 static const uint16_t const BIGHIGH_BG_MMOL = 166;
 
 // BG Snooze Times, in Minutes; controls when vibrate again
+// RANGE 0-240
 static const uint8_t const SPECVALUE_SNZ_MIN = 30;
 static const uint8_t const HYPOLOW_SNZ_MIN = 5;
 static const uint8_t const BIGLOW_SNZ_MIN = 5;
@@ -124,6 +138,7 @@ static const uint8_t const MIDHIGH_SNZ_MIN = 30;
 static const uint8_t const BIGHIGH_SNZ_MIN = 30;
 
 // Vibration Levels; 0 = NONE; 1 = LOW; 2 = MEDIUM; 3 = HIGH
+// IF YOU DO NOT WANT A SPECIFIC VIBRATION, SET TO 0
 static const uint8_t const SPECVALUE_VIBE = 3;
 static const uint8_t const BIGLOWBG_VIBE = 3;
 static const uint8_t const LOWBG_VIBE = 3;
@@ -136,18 +151,33 @@ static const uint8_t const CGMOUT_VIBE = 3;
 static const uint8_t const PHONEOUT_VIBE = 3;
 
 // Icon Cross Out & Vibrate Once Wait Times, in Minutes
+// RANGE 0-240
+// IF YOU WANT TO WAIT LONGER TO GET CONDITION, INCREASE NUMBER
 static const uint8_t const CGMOUT_WAIT_MIN = 10;
 static const uint8_t const PHONEOUT_WAIT_MIN = 5;
 
-// Timer Wait Times, in Seconds
-static const uint8_t const BT_ALERT_WAIT_SECS = 45;
-static const uint8_t const WATCH_MSGSEND_SECS = 60;
-static const uint8_t const LOADING_MSGSEND_SECS = 2;
+// Control Messages
+// IF YOU DO NOT WANT A SPECIFIC MESSAGE, SET TO true
+static const bool const TurnOff_NOBLUETOOTH_Msg = false;
+static const bool const TurnOff_CHECKCGM_Msg = false;
+static const bool const TurnOff_CHECKPHONE_Msg = false;
 
-// Control Vibrations
+// Control All Vibrations
+// IF YOU WANT NO VIBRATIONS, SET TO true
 static const bool const TurnOffAllVibrations = false;
 
+// Bluetooth Timer Wait Time, in Seconds
+// RANGE 0-240
+// THIS IS ONLY FOR REALLY BAD BLUETOOTH CONNECTIONS
+// TRY EXTENDING THIS TIME TO SEE IF IT WIL HELP SMOOTH CONNECTION
+// CGM DATA RECEIVED EVERY 60 SECONDS, GOING BEYOND THAT MAY RESULT IN MISSED DATA
+static const uint8_t const BT_ALERT_WAIT_SECS = 45;
+
 // ** END OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
+
+// Message Timer Wait Times, in Seconds
+static const uint8_t const WATCH_MSGSEND_SECS = 60;
+static const uint8_t const LOADING_MSGSEND_SECS = 2;
 
 enum CgmKey {
 	CGM_ICON_KEY = 0x0,         // TUPLE_CSTRING
@@ -385,8 +415,9 @@ static void handle_bluetooth(bool bt_connected)
 	BT_timer_pop = false;
 	
     //APP_LOG(APP_LOG_LEVEL_INFO, "NO BLUETOOTH");
-  
-	text_layer_set_text(message_layer, "NO BLUETOOTH");
+    if (!TurnOff_NOBLUETOOTH_Msg) {
+	  text_layer_set_text(message_layer, "NO BLUETOOTH");
+	}
     
     // erase cgm and app ago times
     text_layer_set_text(cgmtime_layer, "");
@@ -644,7 +675,9 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         if (!bluetooth_connected) {
 	      // Bluetooth is out; set BT message
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG INIT: NO BT, SET NO BT MESSAGE");
-		  text_layer_set_text(message_layer, "NO BLUETOOTH");
+		  if (!TurnOff_NOBLUETOOTH_Msg) {
+		    text_layer_set_text(message_layer, "NO BLUETOOTH");
+		  }
         }
         break;
       }
@@ -950,7 +983,9 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         if (!bluetooth_connected) {
 	      // Bluetooth is out; set BT message
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, BG INIT: NO BT, SET NO BT MESSAGE");
-		  text_layer_set_text(message_layer, "NO BLUETOOTH");
+		  if (!TurnOff_NOBLUETOOTH_Msg) {
+		    text_layer_set_text(message_layer, "NO BLUETOOTH");
+		  }
         }
         break;
       }
@@ -1447,12 +1482,12 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 	  break;
     }
     
-	if (PhoneOffAlert) {
+	if ((PhoneOffAlert) && (!TurnOff_CHECKPHONE_Msg)) {
 	  text_layer_set_text(message_layer, "CHECK PHONE");
       break;	
 	}
 	
-	if (CGMOffAlert) {
+	if ((CGMOffAlert) && (!TurnOff_CHECKCGM_Msg)) {
 	  text_layer_set_text(message_layer, "CHECK CGM");
       break;	
 	}
