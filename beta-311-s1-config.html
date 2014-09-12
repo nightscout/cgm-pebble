@@ -41,6 +41,9 @@
       </div>
     </div>
     <script>
+
+      var buildCode = 'beta311s1';
+
       if (console && console.log && console.log.call) {
       } else {
         window.console = { log: function ( ) {
@@ -58,9 +61,9 @@
         }
         try {
           if (window.localStorage && window.localStorage.setItem) {
-            window.localStorage.setItem('cgmOpts', JSON.stringify(options));
+            window.localStorage.setItem(buildCode, JSON.stringify(options));
           } else {
-            window.localStorage.cgmOpts =  JSON.stringify(options);
+            window.localStorage[buildCode] =  JSON.stringify(options);
           }
         } catch (e) {
           console.log('err', e);
@@ -98,14 +101,14 @@
           console.log("Warping to: " + location);
           $('#status').text('closing');
           document.location = location;
-          // console.log('saved', window.localStorage.cgmOpts);
+          // console.log('saved', window.localStorage[buildCode);
         });
         $('#status').text('fetching from localStorage');
         var _raw = null;
         var opts = { };
         try {
-          _raw = window.localStorage && window.localStorage.cgmOpts
-                   ? window.localStorage.cgmOpts : null;
+          _raw = window.localStorage && window.localStorage[buildCode]
+                   ? window.localStorage[buildCode] : null;
           opts = (_raw && _raw.length && _raw.length > 5 ? JSON.parse(_raw) : { });
         } catch (e) {
           opts.error = e;

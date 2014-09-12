@@ -1,0 +1,148 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Data endpoint</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- <link rel="stylesheet" href="http://code.jquery.com/mobile/1.3.2/jquery.mobile-1.3.2.min.css" />-->
+    <link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.2/jquery.mobile-1.4.2.min.css" />
+    <!-- <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script> -->
+    <script src="http://code.jquery.com/jquery-2.1.1.js"></script>
+    <!-- <script src="http://code.jquery.com/mobile/1.3.2/jquery.mobile-1.3.2.min.js"></script> -->
+    <script src="http://code.jquery.com/mobile/1.4.2/jquery.mobile-1.4.2.min.js"></script>
+    <style type="text/css">
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div data-role="page" id="main">
+    <div data-role="header" class="jqm-header">
+        <h1>Nightscout</h1>
+        <tt class="hidden"  id="status"></tt>
+    </div>
+
+    <div data-role="content">
+        <div data-role="fieldcontain">
+            <label for="endpoint">Data endpoint:</label>
+            <input type="text" name="endpoint" id="endpoint" />
+        </div>
+
+        <div data-role="fieldcontain">
+            <label for="t1name">Enter T1 Name:</label>
+            <input type="text" name="t1name" id="t1name" />
+        </div>
+        <div data-role="fieldcontain">
+            <fieldset data-role="controlgroup">
+                <legend>Choose mg/dl or mmol:</legend>
+                <input type="radio" name="radio" id="radio1" value="mgdl" />
+                <label for="radio1">mg/dl</label>
+
+                <input type="radio" name="radio" id="radio2" value="mmol"  />
+                <label for="radio2">mmol</label>
+            </fieldset>
+        </div>
+
+        <div class="ui-body ui-body-b">
+            <fieldset class="ui-grid-a">
+                <div class="ui-block-a"><button type="submit" data-theme="d" id="b-cancel">Cancel</button></div>
+                <div class="ui-block-b"><button type="submit" data-theme="a" id="b-submit">Submit</button></div>
+            </fieldset>
+        </div>
+    </div>
+</div>
+<script>
+
+    var buildCode = '402s1';
+
+    if (console && console.log && console.log.call) {
+    } else {
+        window.console = { log: function ( ) {
+            $('#status').text([ ].slice.call(arguments).join(' '));
+        }
+        };
+    }
+
+    $('#status').text('initializing');
+    function saveOptions() {
+        $('#status').text('prepping save');
+        var options = {
+            'endpoint': $("#endpoint").val(),
+            't1name' : $("#t1name").val(),
+            'radio' : $('input[name=radio]:checked').val()
+        }
+        try {
+            if (window.localStorage && window.localStorage.setItem) {
+                window.localStorage.setItem(buildCode, JSON.stringify(options));
+            } else {
+                window.localStorage[buildCode] =  JSON.stringify(options);
+            }
+        } catch (e) {
+            console.log('err', e);
+            options.error = e;
+        }
+        $('#status').text(['prepped', JSON.stringify(options)].join(' '));
+        return options;
+    }
+
+    function getOptions() {
+        $('#status').text('fetching from localStorage');
+        var _raw = null;
+        var opts = { };
+        //try {
+        if(window.localStorage[buildCode]){
+            _raw = window.localStorage && window.localStorage[buildCode]
+                ? window.localStorage[buildCode] : null;
+            opts = (_raw && _raw.length && _raw.length > 5 ? JSON.parse(_raw) : { });
+        }else{
+            $('#status').text('no data');
+            saveOptions();
+            _raw = window.localStorage && window.localStorage[buildCode]
+                ? window.localStorage[buildCode] : null;
+            opts = (_raw && _raw.length && _raw.length > 5 ? JSON.parse(_raw) : { });
+        }
+        //} catch (e) {
+        //opts.error = e;
+        //console.log(e);
+        //$('#status').text('error', JSON.stringify(e));
+        //}
+        $('#status').text(['has opts', JSON.stringify(opts)].join(' '));
+        console.log("opts", JSON.stringify(opts));
+        $("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
+        $("#t1name").val(opts && opts.t1name ? opts.t1name : '');
+        $("input[value='" + opts.radio + "']").attr("checked",true).checkboxradio("refresh");
+        //}
+    }
+
+    $().ready(function() {
+        if (window.location.hash.indexOf("debug") > -1) {
+            $('#status').removeClass('hidden');
+        }
+        $('#status').text('ready');
+        $('#status').text('setting up events');
+
+        $("#b-cancel").click(function() {
+            console.log("Cancel");
+            $('#status').text('canceling');
+            document.location = "pebblejs://close";
+        });
+
+        $("#b-submit").click(function() {
+            console.log("Submit");
+            $('#status').text('submitting');
+
+            var location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(saveOptions()));
+            console.log("Warping to: " + location);
+            $('#status').text('closing');
+            document.location = location;
+            // console.log('saved', window.localStorage[buildCode);
+        });
+
+    });
+    $('#main').bind('pageinit', getOptions);
+
+</script>
+</body>
+</html>
