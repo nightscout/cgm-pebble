@@ -332,7 +332,7 @@ Pebble.addEventListener("appmessage",
 
 Pebble.addEventListener("showConfiguration", function(e) {
                         console.log("Showing Configuration", JSON.stringify(e));
-                        Pebble.openURL('http://m2oore.github.io/cgm-pebble/configurable.html');
+                        Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-4.2.0.html');
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {
