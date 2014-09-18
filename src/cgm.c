@@ -1865,6 +1865,15 @@ static void deinit(void) {
   // unsubscribe to the bluetooth connection service
   bluetooth_connection_service_unsubscribe();
   
+  // cancel timers if they exist
+  if (!(timer == NULL)) {
+    app_timer_cancel(timer);
+  }
+  
+  if (!(BT_timer == NULL)) {
+    app_timer_cancel(BT_timer);
+  }
+  
   // destroy the window
   window_destroy(window);
   
