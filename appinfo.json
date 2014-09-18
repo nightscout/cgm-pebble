@@ -178,7 +178,7 @@
     "shortName": "Nightscout",
     "uuid": "a4e66a45-f30d-4a13-9f0f-59343c6b23a9",
     "versionCode": 10,
-    "versionLabel": "4.3",
+    "versionLabel": "4.4",
     "watchapp": {
         "watchface": true
     }
