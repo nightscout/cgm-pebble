@@ -1,37 +1,18 @@
 // main function to retrieve, format, and send cgm data
 function fetchCgmData() {
 
+    // log for starting fetchCgmData
+    //console.log ("START fetchCgmData");
+
     // declare local variables for message data
     var response, message;
 
-    //call options & started to get endpoint & start time
-    var opts = options( );
-
-    //if endpoint is invalid, return error msg to watch
-    if (!opts.endpoint) {
-      
-        // get app time and format
-        var endpointtime = new Date().getTime(),
-        endpointTZdate = new Date(),
-        endpointTZoffset = endpointTZdate.getTimezoneOffset(),
-        formatendpointtime = Math.floor( (endpointtime / 1000) - (endpointTZoffset * 60) ),
-        endpointstring = formatendpointtime.toString();
-      
-        message = {
-        icon: "",
-        bg: " ",
-        readtime: "",
-        alert: 0,
-        time: endpointstring,
-        delta: "NO ENDPOINT",
-        battlevel: "",
-        t1dname: ""
-        };
-        
-        console.log("NO ENDPOINT send message", JSON.stringify(message));
-        MessageQueue.sendAppMessage(message);
-        return;
-    }
+    //get options from configuration window
+    var opts = [ ].slice.call(arguments).pop( );
+    opts = JSON.parse(window.localStorage.getItem('cgmPebble'));
+    
+    // log to show current options
+    //console.log("fetchCgmData IN OPTIONS = " + JSON.stringify(opts));
 
     // call XML
     var req = new XMLHttpRequest();
@@ -139,46 +120,28 @@ function fetchCgmData() {
                     console.log("JS send message: " + JSON.stringify(message));
                     MessageQueue.sendAppMessage(message);
 
-                // response data is no good; format error message and send to watch                      
+                // response data is not good; format error message and send to watch                      
                 } else {
-                  
-                    // get app time and format
-                    var offlinetime = new Date().getTime(),
-                    offlineTZdate = new Date(),
-                    offlineTZoffset = offlineTZdate.getTimezoneOffset(),
-                    formatofflinetime = Math.floor( (offlinetime / 1000) - (offlineTZoffset * 60) ),
-                    offlinestring = formatofflinetime.toString();
-                  
+
                     message = {
                     icon: "",
                     bg: " ",
                     readtime: "",
                     alert: 0,
-                    time: offlinestring,
+                    time: "",
                     delta: "DATA OFFLINE",
                     battlevel: "",
                     t1dname: ""
-                    };
+                    }; // end message
                   
                     console.log("DATA OFFLINE JS message", JSON.stringify(message));
                     MessageQueue.sendAppMessage(message);
-                }
-            }
-        }
-    };
+                } // end else data is not good
+            } // if req.status == 200
+        } // if req.readyState == 4
+    }; // if req.onload
     req.send(null);
-}
-
-// get endpoint for XML request
-function options ( ) {
-    var opts = [ ].slice.call(arguments).pop( );
-    if (opts) {
-        window.localStorage.setItem('cgmPebble', JSON.stringify(opts));
-    } else {
-        opts = JSON.parse(window.localStorage.getItem('cgmPebble'));
-    }
-    return opts;
-}
+} // if fetchCgmData
 
 // message queue-ing to pace calls from C function on watch
 var MessageQueue = (function () {
@@ -336,11 +299,10 @@ Pebble.addEventListener("showConfiguration", function(e) {
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {
-                        var opts = e.response.length > 5
-                        ? JSON.parse(decodeURIComponent(e.response)): null;
-                        
-                        options(opts);
-                        
+                        var opts = JSON.parse(decodeURIComponent(e.response));
+                        console.log("CLOSE CONFIG OPTIONS = " + JSON.stringify(opts));
+                        // store endpoint in local storage
+                        window.localStorage.setItem('cgmPebble', JSON.stringify(opts));                      
                         });
 
 
