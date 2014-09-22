@@ -426,6 +426,7 @@ static void handle_bluetooth(bool bt_connected)
     // erase cgm icon
 	if (cgmicon_bitmap) {
 	  gbitmap_destroy(cgmicon_bitmap);
+	  cgmicon_bitmap = NULL;
 	}
     cgmicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[0]);
     bitmap_layer_set_bitmap(cgmicon_layer, cgmicon_bitmap);
@@ -433,6 +434,7 @@ static void handle_bluetooth(bool bt_connected)
     // turn phone icon off
 	if (appicon_bitmap) {
 	  gbitmap_destroy(appicon_bitmap);
+	  appicon_bitmap = NULL;
 	}
     appicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[2]);
     bitmap_layer_set_bitmap(appicon_layer, appicon_bitmap);
@@ -540,6 +542,7 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
   // erase cgm icon
   if (cgmicon_bitmap) {
     gbitmap_destroy(cgmicon_bitmap);
+	cgmicon_bitmap = NULL;
   }
   cgmicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[0]);
   bitmap_layer_set_bitmap(cgmicon_layer, cgmicon_bitmap);
@@ -547,6 +550,7 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
   // turn phone icon off
   if (appicon_bitmap) {
     gbitmap_destroy(appicon_bitmap);
+	appicon_bitmap = NULL;
   }
   appicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[2]);
   bitmap_layer_set_bitmap(appicon_layer, appicon_bitmap);
@@ -570,14 +574,18 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
    	//APP_LOG(APP_LOG_LEVEL_INFO, "ICON ARROW");
     // if SpecialValue already set, then break
     if (specialvalue_bitmap) {
+	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, ICON ARROW: SPEC VALUE BITMAP SET, BREAK OUT");
       break;
     }
    
     // no SpecialValue, so set regular icon
 	if (icon_bitmap) {
 		gbitmap_destroy(icon_bitmap);
+		icon_bitmap = NULL;
 	}
 
+	//APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, ICON ARROW: CHECK AND SET ARROW DIRECTION");
+	
     // get current Arrow Direction
     strncpy(current_icon, new_tuple->value->cstring, 124);               
     
@@ -632,6 +640,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
   
     if (specialvalue_bitmap) {
       gbitmap_destroy(specialvalue_bitmap);
+	  specialvalue_bitmap = NULL;
     }
     
     // get MMOL value in myBGAtoi
@@ -665,6 +674,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         text_layer_set_text(bg_layer, "");
 		if (icon_bitmap) {
 		  gbitmap_destroy(icon_bitmap);
+		  icon_bitmap = NULL;
 		}
         icon_bitmap = gbitmap_create_with_resource(ARROW_ICONS[8]);
         bitmap_layer_set_bitmap(icon_layer, icon_bitmap);   
@@ -684,32 +694,38 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
       // check for special value, if special value, then replace icon and blank BG; else send current BG    
       if ((current_bg == NO_ANTENNA_VALUE) || (current_bg == BAD_RF_VALUE)) {
+	    //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE BG MGDL, SPECIAL VALUE: SET BROKEN ANTENNA");
         text_layer_set_text(bg_layer, "");
         specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[1]);
         bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
       }
       else if (current_bg == SENSOR_NOT_CALIBRATED_VALUE) {
-        text_layer_set_text(bg_layer, "");
+        //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE BG MGDL, SPECIAL VALUE: SET BLOOD DROP");
+		text_layer_set_text(bg_layer, "");
         specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[2]);
         bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
       }
       else if (current_bg == STOP_LIGHT_VALUE) {
-        text_layer_set_text(bg_layer, "");
+        //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE BG MGDL, SPECIAL VALUE: SET STOP LIGHT");
+		text_layer_set_text(bg_layer, "");
         specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[3]);
         bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
       }
       else if (current_bg == HOURGLASS_VALUE) {
-        text_layer_set_text(bg_layer, "");
+        //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE BG MGDL, SPECIAL VALUE: SET HOUR GLASS");
+		text_layer_set_text(bg_layer, "");
         specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[4]);
         bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
       }
       else if (current_bg == QUESTION_MARKS_VALUE) {
-      text_layer_set_text(bg_layer, "");
+      //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE BG MGDL, SPECIAL VALUE: SET QUESTION MARKS");
+	  text_layer_set_text(bg_layer, "");
       specialvalue_bitmap = gbitmap_create_with_resource(SPECIAL_VALUE_ICONS[5]);
       bitmap_layer_set_bitmap(icon_layer, specialvalue_bitmap);
       }
       else {
-        text_layer_set_text(bg_layer, new_tuple->value->cstring);
+        //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE BG MGDL, SPECIAL VALUE: SET BG");
+		text_layer_set_text(bg_layer, new_tuple->value->cstring);
       }
   
       // check BG and vibrate if needed
@@ -973,6 +989,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         text_layer_set_text(bg_layer, "");
 		if (icon_bitmap) {
 		   gbitmap_destroy(icon_bitmap);
+		   icon_bitmap = NULL;
 		}
         icon_bitmap = gbitmap_create_with_resource(ARROW_ICONS[8]);
         bitmap_layer_set_bitmap(icon_layer, icon_bitmap); 
@@ -1273,6 +1290,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
     if (cgmicon_bitmap) {
 	  gbitmap_destroy(cgmicon_bitmap);
+	  cgmicon_bitmap = NULL;
 	}
     
     // initialize label buffer
@@ -1332,6 +1350,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         strncpy (formatted_cgm_timeago, "", 10);
 		if (cgmicon_bitmap) {
 		  gbitmap_destroy(cgmicon_bitmap);
+		  cgmicon_bitmap = NULL;
 		}
         cgmicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[0]);
         bitmap_layer_set_bitmap(cgmicon_layer, cgmicon_bitmap);   
@@ -1345,6 +1364,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
 		//APP_LOG(APP_LOG_LEVEL_DEBUG, "SET PHONE OFF ICON, LABEL: %s", cgm_label_buffer);
 		if (cgmicon_bitmap) {
 		  gbitmap_destroy(cgmicon_bitmap);
+		  cgmicon_bitmap = NULL;
 		}
         cgmicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[4]);
         bitmap_layer_set_bitmap(cgmicon_layer, cgmicon_bitmap);
@@ -1379,6 +1399,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
 	if (appicon_bitmap) {
 	  gbitmap_destroy(appicon_bitmap);
+	  appicon_bitmap = NULL;
 	}
     
     // initialize label buffer and icon
@@ -1441,6 +1462,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       if ( (app_timeago_diff >= PHONEOUT_WAIT_MIN) || ( (strcmp(app_label_buffer, "") != 0) && (strcmp(app_label_buffer, "m") != 0) ) ) {
 		if (appicon_bitmap) {
 		  gbitmap_destroy(appicon_bitmap);
+		  appicon_bitmap = NULL;
 		}	  
         appicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[2]);
         bitmap_layer_set_bitmap(appicon_layer, appicon_bitmap);
@@ -1451,6 +1473,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
         // erase cgm icon
 		if (cgmicon_bitmap) {
 		  gbitmap_destroy(cgmicon_bitmap);
+		  cgmicon_bitmap = NULL;
 		}	  
         cgmicon_bitmap = gbitmap_create_with_resource(TIMEAGO_ICONS[0]);
         bitmap_layer_set_bitmap(cgmicon_layer, cgmicon_bitmap);
@@ -1505,6 +1528,7 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
     
     if (batticon_bitmap) {
 	  gbitmap_destroy(batticon_bitmap);
+	  batticon_bitmap = NULL;
 	}
     
     // get current battery level
