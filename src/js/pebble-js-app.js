@@ -1,22 +1,20 @@
 // main function to retrieve, format, and send cgm data
 function fetchCgmData() {
-
-    // log for starting fetchCgmData
+  
     //console.log ("START fetchCgmData");
-
+                
     // declare local variables for message data
     var response, message;
 
     //get options from configuration window
     var opts = [ ].slice.call(arguments).pop( );
     opts = JSON.parse(window.localStorage.getItem('cgmPebble'));
-    
-    // log to show current options
-    //console.log("fetchCgmData IN OPTIONS = " + JSON.stringify(opts));
 
+    // show current options
+    //console.log("fetchCgmData IN OPTIONS = " + JSON.stringify(opts));
+  
     // call XML
     var req = new XMLHttpRequest();
-    //console.log('endpoint: ' + opts.endpoint);
     
     // get cgm data
     req.open('GET', opts.endpoint, true);
@@ -41,107 +39,111 @@ function fetchCgmData() {
 
                     // get direction arrow and BG
                     var currentDirection = response[0].direction,
+                    currentIcon = "10",
                     currentBG = response[0].sgv,
-                    //currentBG = "79",
-                    typeBG = opts.radio,
+                    //currentBG = "100",
+                    //typeBG = opts.radio,
 
                     // get timezone offset
-                    timezonedate = new Date(),
-                    timezoneoffset = timezonedate.getTimezoneOffset(),
+                    timezoneDate = new Date(),
+                    timezoneOffset = timezoneDate.getTimezoneOffset(),
                         
                     // get CGM time delta and format
-                    readingtime = new Date(response[0].datetime).getTime(),
-                    formatreadtime = Math.floor( (readingtime / 1000) - (timezoneoffset * 60) ),
-                    readtimestring = formatreadtime.toString(),
-
-                    // set alertValue
-                    alertValue = 0,
+                    readingTime = new Date(response[0].datetime).getTime(),
+                    //readingTime = null,
+                    formatReadTime = Math.floor( (readingTime / 1000) - (timezoneOffset * 60) ),
 
                     // get app time and format
-                    apptime = new Date().getTime(),
-                    formatapptime = Math.floor( (apptime / 1000) - (timezoneoffset * 60) ),
-                    apptimestring = formatapptime.toString(),    
+                    appTime = new Date().getTime(),
+                    //appTime = null,
+                    formatAppTime = Math.floor( (appTime / 1000) - (timezoneOffset * 60) ),   
                     
                     // get BG delta and format
                     currentBGDelta = response[0].bgdelta,
-                    formatBGdelta = "",                    
+                    //currentBGDelta = -8,
+                    formatBGDelta = " ",
 
                     // get battery level
-
                     currentBattery = response[0].battery,
-
+                    //currentBattery = "100",
                     // get name of T1D
                     NameofT1DPerson = opts.t1name;
                     
-                    // console.log("Radio Button: " + typeBG);
+                    //currentDirection = "NONE";
+                  
+                    // convert arrow to a number string; sending number string to save memory
+                    // putting NOT COMPUTABLE first because that's most common and can get out fastest
+                    switch (currentDirection) {
+                      case "NOT COMPUTABLE": currentIcon = "8"; break;
+                      case "NONE": currentIcon = "0"; break;
+                      case "DoubleUp": currentIcon = "1"; break;
+                      case "SingleUp": currentIcon = "2"; break;
+                      case "FortyFiveUp": currentIcon = "3"; break;
+                      case "Flat": currentIcon = "4"; break;
+                      case "FortyFiveDown": currentIcon = "5"; break;
+                      case "SingleDown": currentIcon = "6"; break;
+                      case "DoubleDown": currentIcon = "7"; break;
+                      case "RATE OUT OF RANGE": currentIcon = "9"; break;
+                      default: currentIcon = "10";
+                    }
+					
+                    // if no battery being sent yet, then send nothing to watch
                     // console.log("Battery Value: " + currentBattery);
-					// if no battery being sent yet, then send nothing to watch
-          
                     if (typeof currentBattery == "undefined") {
-                      currentBattery = "";  
+                      currentBattery = " ";  
                     }
                   
-                    if (typeBG == "mmol") {
-						if ( (currentBGDelta < 5) && (currentBGDelta > -5) ) {
-						// only format if valid BG delta; else will send blank to watch
-						formatBGdelta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mmol";
-						}
-                    }
-                    else {
-						if ( (currentBGDelta < 100) && (currentBGDelta > -100) ) {
-							// only format if valid BG delta; else will send blank to watch
-							formatBGdelta = (currentBGDelta > 0 ? '+' : '') + currentBGDelta + " mg/dL";
-						}
-                    }
+                    // assign bg delta string
+                    formatBGDelta = ((currentBGDelta > 0 ? '+' : '') + currentBGDelta);
                   
                     // debug logs; uncomment when need to debug something
  
                     //console.log("current Direction: " + currentDirection);
+                    //console.log("current Icon: " + currentIcon);
                     //console.log("current BG: " + currentBG);
-                    //console.log("now: " + now);
-                    //console.log("readingtime: " + readingtime);
+                    //console.log("now: " + formatAppTime);
+                    //console.log("readingtime: " + formatReadTime);
                     //console.log("current BG delta: " + currentBGDelta);
-                    //console.log("current Delta: " + delta);              
+                    //console.log("current Formatted Delta: " + formatBGDelta);              
                     //console.log("current Battery: " + currentBattery);
                     
                     // load message data  
                     message = {
-                    icon: currentDirection,
-                    bg: currentBG,
-                    readtime: readtimestring,
-                    alert: alertValue,
-                    time: apptimestring,
-                    delta: formatBGdelta,
-                    battlevel: currentBattery,
-                    t1dname: NameofT1DPerson
+                      icon: currentIcon,
+                      bg: currentBG,
+                      readtime: formatReadTime,
+                      time: formatAppTime,
+                      delta: formatBGDelta,
+                      battlevel: currentBattery,
+                      t1dname: NameofT1DPerson
                     };
                     
                     // send message data to log and to watch
                     console.log("JS send message: " + JSON.stringify(message));
                     MessageQueue.sendAppMessage(message);
 
-                // response data is not good; format error message and send to watch                      
+                // response data is not good; format error message and send to watch
+                // have to send space in BG field for logo to show up on screen				
                 } else {
-
+                  
                     message = {
-                    icon: "",
-                    bg: " ",
-                    readtime: "",
-                    alert: 0,
-                    time: "",
-                    delta: "DATA OFFLINE",
-                    battlevel: "",
-                    t1dname: ""
-                    }; // end message
+                      icon: " ",
+                      bg: " ",
+                      readtime: 0,
+                      time: 0,
+                      delta: "ERR",
+                      battlevel: " ",
+                      t1dname: " "
+                    };
                   
                     console.log("DATA OFFLINE JS message", JSON.stringify(message));
                     MessageQueue.sendAppMessage(message);
-                } // end else data is not good
-            } // if req.status == 200
-        } // if req.readyState == 4
-    }; // if req.onload
+                }
+            } // end req.status == 200
+        } // end req.readyState == 4
+    }; // req.onload
     req.send(null);
-} // if fetchCgmData
+} // end fetchCgmData
 
 // message queue-ing to pace calls from C function on watch
 var MessageQueue = (function () {
@@ -295,7 +297,7 @@ Pebble.addEventListener("appmessage",
 
 Pebble.addEventListener("showConfiguration", function(e) {
                         console.log("Showing Configuration", JSON.stringify(e));
-                        Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-4.2.0.html');
+                        Pebble.openURL('http://m2oore.github.io/cgm-pebble/configurable.html');
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {
@@ -304,10 +306,5 @@ Pebble.addEventListener("webviewclosed", function(e) {
                         // store endpoint in local storage
                         window.localStorage.setItem('cgmPebble', JSON.stringify(opts));                      
                         });
-
-
-
-
-
 
 
