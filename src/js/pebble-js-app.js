@@ -19,6 +19,8 @@ function fetchCgmData() {
     // get cgm data
     req.open('GET', opts.endpoint, true);
     
+    req.setRequestHeader('Cache-Control', 'no-cache');
+    
     req.onload = function(e) {
 
         if (req.readyState == 4) {
