@@ -1,42 +1,48 @@
 #include "pebble.h"
 
 // global window variables
-static Window *window = NULL;
+// ANYTHING THAT IS CALLED BY PEBBLE API HAS TO BE NOT STATIC
 
-static TextLayer *bg_layer = NULL;
-static TextLayer *cgmtime_layer = NULL;
-static TextLayer *message_layer = NULL;    // BG DELTA & MESSAGE LAYER
-static TextLayer *battlevel_layer = NULL;
-static TextLayer *t1dname_layer = NULL;
-static TextLayer *time_watch_layer = NULL;
-static TextLayer *time_app_layer = NULL;
-static TextLayer *date_app_layer = NULL;
+Window *window_cgm = NULL;
 
-static BitmapLayer *icon_layer = NULL;
-static BitmapLayer *cgmicon_layer = NULL;
-static BitmapLayer *appicon_layer = NULL;
-static BitmapLayer *batticon_layer = NULL;
+TextLayer *bg_layer = NULL;
+TextLayer *cgmtime_layer = NULL;
+TextLayer *message_layer = NULL;    // BG DELTA & MESSAGE LAYER
+TextLayer *battlevel_layer = NULL;
+TextLayer *t1dname_layer = NULL;
+TextLayer *time_watch_layer = NULL;
+TextLayer *time_app_layer = NULL;
+TextLayer *date_app_layer = NULL;
 
-static GBitmap *icon_bitmap = NULL;
-static GBitmap *appicon_bitmap = NULL;
-static GBitmap *cgmicon_bitmap = NULL;
-static GBitmap *specialvalue_bitmap = NULL;
-static GBitmap *batticon_bitmap = NULL;
+BitmapLayer *icon_layer = NULL;
+BitmapLayer *cgmicon_layer = NULL;
+BitmapLayer *appicon_layer = NULL;
+BitmapLayer *batticon_layer = NULL;
+
+GBitmap *icon_bitmap = NULL;
+GBitmap *appicon_bitmap = NULL;
+GBitmap *cgmicon_bitmap = NULL;
+GBitmap *specialvalue_bitmap = NULL;
+GBitmap *batticon_bitmap = NULL;
+
+InverterLayer *inv_battlevel_layer = NULL;
 
 static char time_watch_text[] = "00:00";
 static char date_app_text[] = "Wed 13 ";
 
 // variables for AppSync
-static AppSync sync;
-static uint8_t sync_buffer[124];
+AppSync sync_cgm;
+// CGM message is 57 bytes
+// Pebble needs additional 62 Bytes?!? Pad with additional 20 bytes
+static uint8_t sync_buffer_cgm[140];
 
 // variables for timers and time
-static AppTimer *timer = NULL;
-static AppTimer *BT_timer = NULL;
-static time_t time_now = 0;
+AppTimer *timer_cgm = NULL;
+AppTimer *BT_timer = NULL;
+time_t time_now = 0;
 
 // global variable for bluetooth connection
-static bool bluetooth_connected = true;
+bool bluetooth_connected_cgm = true;
 
 // global variables for sync tuple functions
 // buffers have to be static and hardcoded
@@ -68,17 +74,14 @@ static bool bighigh_overwrite = false;
 
 // global variables for vibrating in special conditions
 static bool DoubleDownAlert = false;
-static bool OfflineAlert = false;
+static bool AppSyncErrAlert = false;
+static bool AppMsgInDropAlert = false;
+static bool AppMsgOutFailAlert = false;
 static bool BluetoothAlert = false;
 static bool BT_timer_pop = false;
 static bool CGMOffAlert = false;
 static bool PhoneOffAlert = false;
-
-// global constants for setting vibration patterns
-//static const uint8_t NO_ALERT = 0;
-//static const uint8_t const LOW_ALERT = 1;
-//static const uint8_t const MEDIUM_ALERT = 2;
-//static const uint8_t HIGH_ALERT = 3;
+static bool LowBatteryAlert = false;
 
 // global constants for time durations
 static const uint8_t MINUTEAGO = 60;
@@ -88,6 +91,7 @@ static const uint32_t WEEKAGO = 7*(24*60*60);
 static const uint16_t MS_IN_A_SECOND = 1000;
 
 // Constants for string buffers
+// If add month to date, buffer size needs to increase to 12; also need to reformat date_app_text init string
 static const uint8_t TIME_TEXTBUFF_SIZE = 6;
 static const uint8_t DATE_TEXTBUFF_SIZE = 8;
 static const uint8_t LABEL_BUFFER_SIZE = 6;
@@ -147,16 +151,20 @@ static const uint8_t BIGHIGH_SNZ_MIN = 30;
   
 // Vibration Levels; 0 = NONE; 1 = LOW; 2 = MEDIUM; 3 = HIGH
 // IF YOU DO NOT WANT A SPECIFIC VIBRATION, SET TO 0
-static const uint8_t SPECVALUE_VIBE = 3;
+static const uint8_t SPECVALUE_VIBE = 2;
+static const uint8_t HYPOLOWBG_VIBE = 3;
 static const uint8_t BIGLOWBG_VIBE = 3;
 static const uint8_t LOWBG_VIBE = 3;
-static const uint8_t HIGHBG_VIBE = 3;
-static const uint8_t BIGHIGHBG_VIBE = 3;
+static const uint8_t HIGHBG_VIBE = 2;
+static const uint8_t BIGHIGHBG_VIBE = 2;
 static const uint8_t DOUBLEDOWN_VIBE = 3;
-static const uint8_t WATCHOFFLINE_VIBE = 3;
-static const uint8_t BTOUT_VIBE = 3;
-static const uint8_t CGMOUT_VIBE = 3;
-static const uint8_t PHONEOUT_VIBE = 3;
+static const uint8_t APPSYNC_ERR_VIBE = 1;
+static const uint8_t APPMSG_INDROP_VIBE = 1;
+static const uint8_t APPMSG_OUTFAIL_VIBE = 1;
+static const uint8_t BTOUT_VIBE = 1;
+static const uint8_t CGMOUT_VIBE = 1;
+static const uint8_t PHONEOUT_VIBE = 1;
+static const uint8_t LOWBATTERY_VIBE = 1;
 
 // Icon Cross Out & Vibrate Once Wait Times, in Minutes
 // RANGE 0-240
@@ -170,9 +178,11 @@ static const bool TurnOff_NOBLUETOOTH_Msg = false;
 static const bool TurnOff_CHECKCGM_Msg = false;
 static const bool TurnOff_CHECKPHONE_Msg = false;
 
-// Control All Vibrations
+// Control Vibrations
 // IF YOU WANT NO VIBRATIONS, SET TO true
 static const bool TurnOffAllVibrations = false;
+// IF YOU WANT LESS INTENSE VIBRATIONS, SET TO true
+static const bool TurnOffStrongVibrations = false;
 
 // Bluetooth Timer Wait Time, in Seconds
 // RANGE 0-240
@@ -188,14 +198,17 @@ static const uint8_t WATCH_MSGSEND_SECS = 60;
 static const uint8_t LOADING_MSGSEND_SECS = 4;
 
 enum CgmKey {
-	CGM_ICON_KEY = 0x0,         // TUPLE_CSTRING, MAX 2 BYTES (10)
-	CGM_BG_KEY = 0x1,           // TUPLE_CSTRING, MAX 4 BYTES (22.2)
-	CGM_READTIME_KEY = 0x2,     // TUPLE_INT, 4 BYTES (CGM TIME)
-	CGM_TIME_NOW = 0x3,         // TUPLE_INT, 4 BYTES (APP / PHONE TIME)
-	CGM_DELTA_KEY = 0x4,        // TUPLE_CSTRING, MAX 5 BYTES (-100 or -10.0)
-	CGM_BATTLEVEL_KEY = 0x5,    // TUPLE_CSTRING, MAX 3 BYTES (100)
-	CGM_T1DNAME_KEY = 0x6       // TUPLE_CSTRING, MAX 9 BYTES (Christine)
-}; // TOTAL MESSAGE 31 BYTES
+	CGM_ICON_KEY = 0x0,		// TUPLE_CSTRING, MAX 2 BYTES (10)
+	CGM_BG_KEY = 0x1,		// TUPLE_CSTRING, MAX 4 BYTES (253 OR 22.2)
+	CGM_TCGM_KEY = 0x2,		// TUPLE_INT, 4 BYTES (CGM TIME)
+	CGM_TAPP_KEY = 0x3,		// TUPLE_INT, 4 BYTES (APP / PHONE TIME)
+	CGM_DLTA_KEY = 0x4,		// TUPLE_CSTRING, MAX 5 BYTES (BG DELTA, -100 or -10.0)
+	CGM_UBAT_KEY = 0x5,		// TUPLE_CSTRING, MAX 3 BYTES (UPLOADER BATTERY, 100)
+	CGM_NAME_KEY = 0x6		// TUPLE_CSTRING, MAX 9 BYTES (Christine)
+}; 
+// TOTAL MESSAGE DATA 4x3+2+5+3+9 = 31 BYTES
+// TOTAL KEY HEADER DATA (STRINGS) 4x6+2 = 26 BYTES
+// TOTAL MESSAGE 57 BYTES
 
 // ARRAY OF SPECIAL VALUE ICONS
 static const uint8_t SPECIAL_VALUE_ICONS[] = {
@@ -321,48 +334,62 @@ int myBGAtoi(char *str) {
 } // end myBGAtoi
 
 static void destroy_null_GBitmap(GBitmap **GBmp_image) {
-	//APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL GBITMAP: ENTER CODE");
+	//APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL GBITMAP: ENTER CODE");
   
   if (*GBmp_image != NULL) {
-    //APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL GBITMAP: POINTER EXISTS, DESTROY BITMAP IMAGE");
+    //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL GBITMAP: POINTER EXISTS, DESTROY BITMAP IMAGE");
       gbitmap_destroy(*GBmp_image);
       if (*GBmp_image != NULL) {
-        //APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL GBITMAP: POINTER EXISTS, SET POINTER TO NULL");
+        //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL GBITMAP: POINTER EXISTS, SET POINTER TO NULL");
         *GBmp_image = NULL;
       }
 	}
   
-   //APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL GBITMAP: EXIT CODE");
+   //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL GBITMAP: EXIT CODE");
 } // end destroy_null_GBitmap
 
 static void destroy_null_BitmapLayer(BitmapLayer **bmp_layer) {
-	//APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL BITMAP: ENTER CODE");
+	//APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL BITMAP: ENTER CODE");
 	
 	if (*bmp_layer != NULL) {
-    //APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL BITMAP: POINTER EXISTS, DESTROY BITMAP LAYER");
+    //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL BITMAP: POINTER EXISTS, DESTROY BITMAP LAYER");
       bitmap_layer_destroy(*bmp_layer);
       if (*bmp_layer != NULL) {
-        //APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL BITMAP: POINTER EXISTS, SET POINTER TO NULL");
+        //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL BITMAP: POINTER EXISTS, SET POINTER TO NULL");
         *bmp_layer = NULL;
       }
 	}
 
-  //APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL BITMAP: EXIT CODE");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL BITMAP: EXIT CODE");
 } // end destroy_null_BitmapLayer
 
 static void destroy_null_TextLayer(TextLayer **txt_layer) {
-	//APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL TEXT LAYER: ENTER CODE");
+	//APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL TEXT LAYER: ENTER CODE");
 	
 	if (*txt_layer != NULL) {
-    //APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL TEXT LAYER: POINTER EXISTS, DESTROY TEXT LAYER");
+    //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL TEXT LAYER: POINTER EXISTS, DESTROY TEXT LAYER");
       text_layer_destroy(*txt_layer);
       if (*txt_layer != NULL) {
-        //APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL TEXT LAYER: POINTER EXISTS, SET POINTER TO NULL");
+        //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL TEXT LAYER: POINTER EXISTS, SET POINTER TO NULL");
         *txt_layer = NULL;
       }
 	}
-//APP_LOG(APP_LOG_LEVEL_INFO, " DESTROY NULL TEXT LAYER: EXIT CODE");
+//APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL TEXT LAYER: EXIT CODE");
 } // end destroy_null_TextLayer
+
+static void destroy_null_InverterLayer(InverterLayer **inv_layer) {
+	//APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL INVERTER LAYER: ENTER CODE");
+	
+	if (*inv_layer != NULL) {
+    //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL INVERTER LAYER: POINTER EXISTS, DESTROY INVERTER LAYER");
+      inverter_layer_destroy(*inv_layer);
+      if (*inv_layer != NULL) {
+        //APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL INVERTER LAYER: POINTER EXISTS, SET POINTER TO NULL");
+        *inv_layer = NULL;
+      }
+	}
+//APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL INVERTER LAYER: EXIT CODE");
+} // end destroy_null_InverterLayer
 
 static void create_update_bitmap(GBitmap **bmp_image, BitmapLayer *bmp_layer, const int resource_id) {
 	//APP_LOG(APP_LOG_LEVEL_INFO, " CREATE UPDATE BITMAP: ENTER CODE");
@@ -387,22 +414,34 @@ static void create_update_bitmap(GBitmap **bmp_image, BitmapLayer *bmp_layer, co
 	//APP_LOG(APP_LOG_LEVEL_INFO, " CREATE UPDATE BITMAP: EXIT CODE");
 } // end create_update_bitmap
 
-static void alert_handler(uint8_t alertValue) {
+static void alert_handler_cgm(uint8_t alertValue) {
 	//APP_LOG(APP_LOG_LEVEL_INFO, "ALERT HANDLER");
 	//APP_LOG(APP_LOG_LEVEL_DEBUG, "ALERT CODE: %d", alertValue);
 	
 	// CONSTANTS
-	// constants for vibrations patterns; has to be uint32_t
-	static const uint32_t high[] = { 500,100,100,100,500,100,100,100,500,100,100,100,500,100,100,100,500,100,100};
-	static const uint32_t low[] = { 1000,100,2000};
-
-	//static const uint32_t hypo[] = { 3200,200,3200 };
-	//static const uint32_t hyper[] = { 50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150 };
-
-	//static const uint32_t trend_high[] = { 200,200,1000,200,200,200,1000 };
-	//static const uint32_t trend_low[] = { 2000,200,1000 };
-
-	//static const uint32_t alert[] = { 500,200,1000 };
+	// constants for vibrations patterns; has to be uint32_t, measured in ms, maximum duration 10000ms
+	// Vibe pattern: ON, OFF, ON, OFF; ON for 500ms, OFF for 100ms, ON for 100ms; 
+	
+	// CURRENT PATTERNS
+	const uint32_t highalert_fast[] = { 300,100,50,100,300,100,50,100,300,100,50,100,300,100,50,100,300,100,50,100,300,100,50,100,300,100,50,100,300,100,50,100,300 };
+	const uint32_t medalert_long[] = { 500,100,100,100,500,100,100,100,500,100,100,100,500,100,100,100,500 };
+	const uint32_t lowalert_beebuzz[] = { 75,50,50,50,75,50,50,50,75,50,50,50,75,50,50,50,75,50,50,50,75,50,50,50,75 };
+	
+	// PATTERN DURATION
+	const uint8_t HIGHALERT_FAST_STRONG = 33;
+	const uint8_t HIGHALERT_FAST_SHORT = (33/2);
+	const uint8_t MEDALERT_LONG_STRONG = 17;
+	const uint8_t MEDALERT_LONG_SHORT = (17/2);
+	const uint8_t LOWALERT_BEEBUZZ_STRONG = 25;
+	const uint8_t LOWALERT_BEEBUZZ_SHORT = (25/2);
+	
+	// PAST PATTERNS
+	//const uint32_t hypo[] = { 3200,200,3200 };
+	//const uint32_t low[] = { 1000,100,2000 };
+	//const uint32_t hyper[] = { 50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150 };
+	//const uint32_t trend_high[] = { 200,200,1000,200,200,200,1000 };
+	//const uint32_t trend_low[] = { 2000,200,1000 };
+	//const uint32_t alert[] = { 500,200,1000 };
   
 	// CODE START
 	
@@ -421,39 +460,43 @@ static void alert_handler(uint8_t alertValue) {
 	case 1:;
       //Low
       //APP_LOG(APP_LOG_LEVEL_INFO, "ALERT HANDLER: LOW ALERT");
-      vibes_double_pulse();
+      VibePattern low_alert_pat = {
+			.durations = lowalert_beebuzz,
+			.num_segments = LOWALERT_BEEBUZZ_STRONG,
+      };
+	  if (TurnOffStrongVibrations) { low_alert_pat.num_segments = LOWALERT_BEEBUZZ_SHORT; };
+      vibes_enqueue_custom_pattern(low_alert_pat);
       break;
 
 	case 2:;
-      // Medium
+      // Medium Alert
       //APP_LOG(APP_LOG_LEVEL_INFO, "ALERT HANDLER: MEDIUM ALERT");
-      vibes_double_pulse();
-      VibePattern lowpat = {
-			.durations = low,
-			.num_segments = ARRAY_LENGTH(low),
+      VibePattern med_alert_pat = {
+			.durations = medalert_long,
+			.num_segments = MEDALERT_LONG_STRONG,
       };
-      vibes_enqueue_custom_pattern(lowpat);
-      //vibes_double_pulse(lowpat);
+	  if (TurnOffStrongVibrations) { med_alert_pat.num_segments = MEDALERT_LONG_SHORT; };
+      vibes_enqueue_custom_pattern(med_alert_pat);
       break;
 
 	case 3:;
-      // High
+      // High Alert
       //APP_LOG(APP_LOG_LEVEL_INFO, "ALERT HANDLER: HIGH ALERT");
-      VibePattern highpat = {
-			.durations = high,
-			.num_segments = ARRAY_LENGTH(high),
+      VibePattern high_alert_pat = {
+			.durations = highalert_fast,
+			.num_segments = HIGHALERT_FAST_STRONG,
       };
-      vibes_enqueue_custom_pattern(highpat);
+	  if (TurnOffStrongVibrations) { high_alert_pat.num_segments = HIGHALERT_FAST_SHORT; };
+      vibes_enqueue_custom_pattern(high_alert_pat);
       break;
-
-	  
+  
 	} // switch alertValue
 	
-} // end alert_handler
+} // end alert_handler_cgm
 
-static void BT_timer_callback(void *data);
+void BT_timer_callback(void *data);
 
-static void handle_bluetooth(bool bt_connected) {
+void handle_bluetooth_cgm(bool bt_connected) {
   //APP_LOG(APP_LOG_LEVEL_INFO, "HANDLE BT: ENTER CODE");
   
   if (bt_connected == false)
@@ -483,7 +526,7 @@ static void handle_bluetooth(bool bt_connected) {
 	// timer has popped
 	// Vibrate; BluetoothAlert takes over until Bluetooth connection comes back on
 	//APP_LOG(APP_LOG_LEVEL_INFO, "BT HANDLER: TIMER POP, NO BLUETOOTH");
-    alert_handler(BTOUT_VIBE);
+    alert_handler_cgm(BTOUT_VIBE);
     BluetoothAlert = true;
 	
 	// Reset timer pop
@@ -515,9 +558,9 @@ static void handle_bluetooth(bool bt_connected) {
   }
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "BluetoothAlert: %i", BluetoothAlert);
-} // end handle_bluetooth
+} // end handle_bluetooth_cgm
 
-static void BT_timer_callback(void *data) {
+void BT_timer_callback(void *data) {
     //APP_LOG(APP_LOG_LEVEL_INFO, "BT TIMER CALLBACK: ENTER CODE");
 	
 	// reset timer pop and timer
@@ -527,8 +570,8 @@ static void BT_timer_callback(void *data) {
 	}
 	
 	// check bluetooth and call handler
-	bluetooth_connected = bluetooth_connection_service_peek();
-	handle_bluetooth(bluetooth_connected);
+	bluetooth_connected_cgm = bluetooth_connection_service_peek();
+	handle_bluetooth_cgm(bluetooth_connected_cgm);
 	
 } // end BT_timer_callback
 
@@ -556,54 +599,57 @@ static void draw_date_from_app() {
 
 } // end draw_date_from_app
 
-static void sync_error_callback(DictionaryResult dict_error, AppMessageResult app_message_error, void *context) {
+void sync_error_callback_cgm(DictionaryResult appsync_dict_error, AppMessageResult appsync_error, void *context) {
 
+  // VARIABLES
   DictionaryIterator *iter = NULL;
-  AppMessageResult watchoff_openerr = APP_MSG_OK;
-  AppMessageResult watchoff_senderr = APP_MSG_OK;
+  AppMessageResult appsync_err_openerr = APP_MSG_OK;
+  AppMessageResult appsync_err_senderr = APP_MSG_OK;
   
-   //  WATCH OFFLINE debug logs
-  APP_LOG(APP_LOG_LEVEL_INFO, "WATCH OFFLINE ERROR");
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "WO APP ERR CODE: %i RES: %s", app_message_error, translate_app_error(app_message_error));
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "WO DICT ERR CODE: %i RES: %s", dict_error, translate_dict_error(dict_error));
+  // CODE START
+  
+  // APPSYNC ERROR debug logs
+  APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC ERROR");
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC MSG ERR CODE: %i RES: %s", appsync_error, translate_app_error(appsync_error));
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC DICT ERR CODE: %i RES: %s", appsync_dict_error, translate_dict_error(appsync_dict_error));
 
-  bluetooth_connected = bluetooth_connection_service_peek();
+  bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-  if (!bluetooth_connected) {
+  if (!bluetooth_connected_cgm) {
     // bluetooth is out, BT message already set; return out
     return;
   }
   
-  watchoff_openerr = app_message_outbox_begin(&iter);
+  appsync_err_openerr = app_message_outbox_begin(&iter);
   
-  if (watchoff_openerr == APP_MSG_OK) {
-    // reset Offline alert
-	OfflineAlert = false;
+  if (appsync_err_openerr == APP_MSG_OK) {
+    // reset AppSyncErrAlert to flag for vibrate
+	AppSyncErrAlert = false;
 	
 	// send message
-    watchoff_senderr = app_message_outbox_send();
-	if (watchoff_senderr != APP_MSG_OK ) {
-	  APP_LOG(APP_LOG_LEVEL_INFO, "WATCH OFFLINE SEND ERROR");
-	  APP_LOG(APP_LOG_LEVEL_DEBUG, "WO SEND ERR CODE: %i RES: %s", watchoff_senderr, translate_app_error(watchoff_senderr));
+    appsync_err_senderr = app_message_outbox_send();
+	if (appsync_err_senderr != APP_MSG_OK ) {
+	  APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC SEND ERROR");
+	  APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC SEND ERR CODE: %i RES: %s", appsync_err_senderr, translate_app_error(appsync_err_senderr));
 	} 
 	else {
 	  return;
 	}
   }
 
-  APP_LOG(APP_LOG_LEVEL_INFO, "WATCH OFFLINE RESEND ERROR");
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "WO RESEND ERR CODE: %i RES: %s", watchoff_openerr, translate_app_error(watchoff_openerr));
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "OfflineAlert:  %i", OfflineAlert);
+  APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC RESEND ERROR");
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC RESEND ERR CODE: %i RES: %s", appsync_err_openerr, translate_app_error(appsync_err_openerr));
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "AppSyncErrAlert:  %i", AppSyncErrAlert);
     
-  bluetooth_connected = bluetooth_connection_service_peek();
+  bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-  if (!bluetooth_connected) {
+  if (!bluetooth_connected_cgm) {
     // bluetooth is out, BT message already set; return out
     return;
   }
     
-  // set message to WATCH OFFLINE
-  text_layer_set_text(message_layer, "WATCH OFFLINE");
+  // set message to RESTART WATCH -> PHONE
+  text_layer_set_text(message_layer, "RSTRT WCH/PH");
     
   // erase cgm and app ago times
   text_layer_set_text(cgmtime_layer, "");
@@ -616,13 +662,155 @@ static void sync_error_callback(DictionaryResult dict_error, AppMessageResult ap
   create_update_bitmap(&appicon_bitmap,appicon_layer,TIMEAGO_ICONS[PHONEOFF_ICON_INDX]);
 
   // check if need to vibrate
-  if (!OfflineAlert) {
-    //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE ERROR: WATCH OFFLINE");
-    alert_handler(WATCHOFFLINE_VIBE);
-	OfflineAlert = true;
+  if (!AppSyncErrAlert) {
+    //APP_LOG(APP_LOG_LEVEL_INFO, "APPSYNC ERROR: VIBRATE");
+    alert_handler_cgm(APPSYNC_ERR_VIBE);
+	AppSyncErrAlert = true;
   } 
     
-} // end sync_error_callback
+} // end sync_error_callback_cgm
+
+void inbox_dropped_handler_cgm(AppMessageResult appmsg_indrop_error, void *context) {
+	// incoming appmessage send back from Pebble app dropped; no data received
+	
+	// VARIABLES
+	DictionaryIterator *iter = NULL;
+	AppMessageResult appmsg_indrop_openerr = APP_MSG_OK;
+	AppMessageResult appmsg_indrop_senderr = APP_MSG_OK;
+  
+	// CODE START
+	
+	// APPMSG IN DROP debug logs
+	APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR");
+	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP ERR CODE: %i RES: %s", appmsg_indrop_error, translate_app_error(appmsg_indrop_error));
+
+	bluetooth_connected_cgm = bluetooth_connection_service_peek();
+    
+	if (!bluetooth_connected_cgm) {
+      // bluetooth is out, BT message already set; return out
+      return;
+	}
+  
+	appmsg_indrop_openerr = app_message_outbox_begin(&iter);
+  
+	if (appmsg_indrop_openerr == APP_MSG_OK) {
+      // reset AppMsgInDropAlert to flag for vibrate
+	  AppMsgInDropAlert = false;
+	
+  	  // send message
+      appmsg_indrop_senderr = app_message_outbox_send();
+	  if (appmsg_indrop_senderr != APP_MSG_OK ) {
+	    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP SEND ERROR");
+	    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP SEND ERR CODE: %i RES: %s", appmsg_indrop_senderr, translate_app_error(appmsg_indrop_senderr));
+	  } 
+	  else {
+	    return;
+	  }
+  	}
+
+	APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP RESEND ERROR");
+	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP RESEND ERR CODE: %i RES: %s", appmsg_indrop_openerr, translate_app_error(appmsg_indrop_openerr));
+	APP_LOG(APP_LOG_LEVEL_DEBUG, "AppMsgInDropAlert:  %i", AppMsgInDropAlert);
+    
+	bluetooth_connected_cgm = bluetooth_connection_service_peek();
+    
+	if (!bluetooth_connected_cgm) {
+      // bluetooth is out, BT message already set; return out
+      return;
+	}
+    
+	// set message to RESTART WATCH -> PHONE
+	text_layer_set_text(message_layer, "RSTRT WCH/PHN");
+    
+	// erase cgm and app ago times
+	text_layer_set_text(cgmtime_layer, "");
+	text_layer_set_text(time_app_layer, "");
+    
+	// erase cgm icon
+	create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[NONE_TIMEAGO_ICON_INDX]);
+    
+	// turn phone icon off
+	create_update_bitmap(&appicon_bitmap,appicon_layer,TIMEAGO_ICONS[PHONEOFF_ICON_INDX]);
+
+	// check if need to vibrate
+	if (!AppMsgInDropAlert) {
+      //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR: VIBRATE");
+      alert_handler_cgm(APPMSG_INDROP_VIBE);
+	  AppMsgInDropAlert = true;
+	} 
+    
+} // end inbox_dropped_handler_cgm
+
+void outbox_failed_handler_cgm(DictionaryIterator *failed, AppMessageResult appmsg_outfail_error, void *context) {
+	// outgoing appmessage send failed to deliver to Pebble
+	
+	// VARIABLES
+	DictionaryIterator *iter = NULL;
+	AppMessageResult appmsg_outfail_openerr = APP_MSG_OK;
+	AppMessageResult appmsg_outfail_senderr = APP_MSG_OK;
+  
+	// CODE START
+	
+	// APPMSG OUT FAIL debug logs
+	APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR");
+	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL ERR CODE: %i RES: %s", appmsg_outfail_error, translate_app_error(appmsg_outfail_error));
+
+	bluetooth_connected_cgm = bluetooth_connection_service_peek();
+    
+	if (!bluetooth_connected_cgm) {
+      // bluetooth is out, BT message already set; return out
+      return;
+	}
+  
+	appmsg_outfail_openerr = app_message_outbox_begin(&iter);
+  
+	if (appmsg_outfail_openerr == APP_MSG_OK) {
+      // reset AppMsgOutFailAlert to flag for vibrate
+	  AppMsgOutFailAlert = false;
+	
+  	  // send message
+      appmsg_outfail_senderr = app_message_outbox_send();
+	  if (appmsg_outfail_senderr != APP_MSG_OK ) {
+	    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL SEND ERROR");
+	    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL SEND ERR CODE: %i RES: %s", appmsg_outfail_senderr, translate_app_error(appmsg_outfail_senderr));
+	  } 
+	  else {
+	    return;
+	  }
+  	}
+
+	APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL RESEND ERROR");
+	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL RESEND ERR CODE: %i RES: %s", appmsg_outfail_openerr, translate_app_error(appmsg_outfail_openerr));
+	APP_LOG(APP_LOG_LEVEL_DEBUG, "AppMsgOutFailAlert:  %i", AppMsgOutFailAlert);
+    
+	bluetooth_connected_cgm = bluetooth_connection_service_peek();
+    
+	if (!bluetooth_connected_cgm) {
+      // bluetooth is out, BT message already set; return out
+      return;
+	}
+    
+	// set message to RESTART WATCH -> PHONE
+	text_layer_set_text(message_layer, "RSTRT WCH/PHN");
+    
+	// erase cgm and app ago times
+	text_layer_set_text(cgmtime_layer, "");
+	text_layer_set_text(time_app_layer, "");
+    
+	// erase cgm icon
+	create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[NONE_TIMEAGO_ICON_INDX]);
+    
+	// turn phone icon off
+	create_update_bitmap(&appicon_bitmap,appicon_layer,TIMEAGO_ICONS[PHONEOFF_ICON_INDX]);
+
+	// check if need to vibrate
+	if (!AppMsgOutFailAlert) {
+      //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR: VIBRATE");
+      alert_handler_cgm(APPMSG_OUTFAIL_VIBE);
+	  AppMsgOutFailAlert = true;
+	} 
+	
+} // end outbox_failed_handler_cgm
 
 static void load_icon() {
 	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ICON ARROW FUNCTION START");
@@ -630,19 +818,19 @@ static void load_icon() {
 	// CONSTANTS
 	
 	// ICON ASSIGNMENTS OF ARROW DIRECTIONS
-	static const char NO_ARROW[] = "0";
-	static const char DOUBLEUP_ARROW[] = "1";
-	static const char SINGLEUP_ARROW[] = "2";
-	static const char UP45_ARROW[] = "3";
-	static const char FLAT_ARROW[] = "4";
-	static const char DOWN45_ARROW[] = "5";
-	static const char SINGLEDOWN_ARROW[] = "6";
-	static const char DOUBLEDOWN_ARROW[] = "7";
-	static const char NOTCOMPUTE_ICON[] = "8";
-	static const char OUTOFRANGE_ICON[] = "9";
+	const char NO_ARROW[] = "0";
+	const char DOUBLEUP_ARROW[] = "1";
+	const char SINGLEUP_ARROW[] = "2";
+	const char UP45_ARROW[] = "3";
+	const char FLAT_ARROW[] = "4";
+	const char DOWN45_ARROW[] = "5";
+	const char SINGLEDOWN_ARROW[] = "6";
+	const char DOUBLEDOWN_ARROW[] = "7";
+	const char NOTCOMPUTE_ICON[] = "8";
+	const char OUTOFRANGE_ICON[] = "9";
 	
 	// ARRAY OF ARROW ICON IMAGES
-	static const uint8_t ARROW_ICONS[] = {
+	const uint8_t ARROW_ICONS[] = {
 	  RESOURCE_ID_IMAGE_NONE,     //0
 	  RESOURCE_ID_IMAGE_UPUP,     //1
 	  RESOURCE_ID_IMAGE_UP,       //2
@@ -656,16 +844,16 @@ static void load_icon() {
 	};
     
 	// INDEX FOR ARRAY OF ARROW ICON IMAGES
-	static const uint8_t NONE_ARROW_ICON_INDX = 0;
-	static const uint8_t UPUP_ICON_INDX = 1;
-	static const uint8_t UP_ICON_INDX = 2;
-	static const uint8_t UP45_ICON_INDX = 3;
-	static const uint8_t FLAT_ICON_INDX = 4;
-	static const uint8_t DOWN45_ICON_INDX = 5;
-	static const uint8_t DOWN_ICON_INDX = 6;
-	static const uint8_t DOWNDOWN_ICON_INDX = 7;
-	static const uint8_t LOGO_ARROW_ICON_INDX = 8;
-	static const uint8_t ERR_ARROW_ICON_INDX = 9;
+	const uint8_t NONE_ARROW_ICON_INDX = 0;
+	const uint8_t UPUP_ICON_INDX = 1;
+	const uint8_t UP_ICON_INDX = 2;
+	const uint8_t UP45_ICON_INDX = 3;
+	const uint8_t FLAT_ICON_INDX = 4;
+	const uint8_t DOWN45_ICON_INDX = 5;
+	const uint8_t DOWN_ICON_INDX = 6;
+	const uint8_t DOWNDOWN_ICON_INDX = 7;
+	const uint8_t LOGO_ARROW_ICON_INDX = 8;
+	const uint8_t ERR_ARROW_ICON_INDX = 9;
 	
   //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ARROW ICON, BEFORE CHECK SPEC VALUE BITMAP");
 	// check if special value set
@@ -704,8 +892,8 @@ static void load_icon() {
       }
       else if (strcmp(current_icon, DOUBLEDOWN_ARROW) == 0) {
 	    if (!DoubleDownAlert) {
-	      //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE, ICON ARROW: DOUBLE DOWN");
-	      alert_handler(DOUBLEDOWN_VIBE);
+	      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ICON, ICON ARROW: DOUBLE DOWN");
+	      alert_handler_cgm(DOUBLEDOWN_VIBE);
 	      DoubleDownAlert = true;
 	    }
 	    create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[DOWNDOWN_ICON_INDX]);
@@ -713,10 +901,10 @@ static void load_icon() {
       else {
 	    // check for special cases and set icon accordingly
 		// check bluetooth
-	    bluetooth_connected = bluetooth_connection_service_peek();
+	    bluetooth_connected_cgm = bluetooth_connection_service_peek();
         
 	    // check to see if we are in the loading screen  
-	    if (!bluetooth_connected) {
+	    if (!bluetooth_connected_cgm) {
 	      // Bluetooth is out; in the loading screen so set logo
 	      create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[LOGO_ARROW_ICON_INDX]);
 	    }
@@ -728,7 +916,7 @@ static void load_icon() {
 	  }
 	} // if specvalue_alert == false
 	else { // this is just for log when need it
-	  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ICON: SPEC VALUE ALERT IS TRUE, DONE");
+	  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ICON, SPEC VALUE ALERT IS TRUE, DONE");
 	} // else specvalue_alert == true
 	
 } // end load_icon
@@ -767,38 +955,38 @@ static void load_bg() {
 	};
     
 	// INDEX FOR ARRAYS OF BG CONSTANTS
-	static const uint8_t SPECVALUE_BG_INDX = 0;
-	static const uint8_t SHOWLOW_BG_INDX = 1;
-	static const uint8_t HYPOLOW_BG_INDX = 2;
-	static const uint8_t BIGLOW_BG_INDX = 3;
-	static const uint8_t MIDLOW_BG_INDX = 4;
-	static const uint8_t LOW_BG_INDX = 5;
-	static const uint8_t HIGH_BG_INDX = 6;
-	static const uint8_t MIDHIGH_BG_INDX = 7;
-	static const uint8_t BIGHIGH_BG_INDX = 8;
-	static const uint8_t SHOWHIGH_BG_INDX = 9;
+	const uint8_t SPECVALUE_BG_INDX = 0;
+	const uint8_t SHOWLOW_BG_INDX = 1;
+	const uint8_t HYPOLOW_BG_INDX = 2;
+	const uint8_t BIGLOW_BG_INDX = 3;
+	const uint8_t MIDLOW_BG_INDX = 4;
+	const uint8_t LOW_BG_INDX = 5;
+	const uint8_t HIGH_BG_INDX = 6;
+	const uint8_t MIDHIGH_BG_INDX = 7;
+	const uint8_t BIGHIGH_BG_INDX = 8;
+	const uint8_t SHOWHIGH_BG_INDX = 9;
 	
 	// MG/DL SPECIAL VALUE CONSTANTS ACTUAL VALUES
 	// mg/dL = mmol / .0555 OR mg/dL = mmol * 18.0182
-	static const uint8_t SENSOR_NOT_ACTIVE_VALUE_MGDL = 1;		// show stop light, ?SN
-	static const uint8_t MINIMAL_DEVIATION_VALUE_MGDL = 2; 		// show stop light, ?MD
-	static const uint8_t NO_ANTENNA_VALUE_MGDL = 3; 			// show broken antenna, ?NA 
-	static const uint8_t SENSOR_NOT_CALIBRATED_VALUE_MGDL = 5;	// show blood drop, ?NC
-	static const uint8_t STOP_LIGHT_VALUE_MGDL = 6;				// show stop light, ?CD
-	static const uint8_t HOURGLASS_VALUE_MGDL = 9;				// show hourglass, hourglass
-	static const uint8_t QUESTION_MARKS_VALUE_MGDL = 10;		// show ???, ???
-	static const uint8_t BAD_RF_VALUE_MGDL = 12;				// show broken antenna, ?RF
+	const uint8_t SENSOR_NOT_ACTIVE_VALUE_MGDL = 1;		// show stop light, ?SN
+	const uint8_t MINIMAL_DEVIATION_VALUE_MGDL = 2; 		// show stop light, ?MD
+	const uint8_t NO_ANTENNA_VALUE_MGDL = 3; 			// show broken antenna, ?NA 
+	const uint8_t SENSOR_NOT_CALIBRATED_VALUE_MGDL = 5;	// show blood drop, ?NC
+	const uint8_t STOP_LIGHT_VALUE_MGDL = 6;				// show stop light, ?CD
+	const uint8_t HOURGLASS_VALUE_MGDL = 9;				// show hourglass, hourglass
+	const uint8_t QUESTION_MARKS_VALUE_MGDL = 10;		// show ???, ???
+	const uint8_t BAD_RF_VALUE_MGDL = 12;				// show broken antenna, ?RF
 
 	// MMOL SPECIAL VALUE CONSTANTS ACTUAL VALUES
 	// mmol = mg/dL / 18.0182 OR mmol = mg/dL * .0555
-	static const uint8_t SENSOR_NOT_ACTIVE_VALUE_MMOL = 1;		// show stop light, ?SN (.06 -> .1)
-	static const uint8_t MINIMAL_DEVIATION_VALUE_MMOL = 1;		// show stop light, ?MD (.11 -> .1)
-	static const uint8_t NO_ANTENNA_VALUE_MMOL = 2;				// show broken antenna, ?NA (.17 -> .2)
-	static const uint8_t SENSOR_NOT_CALIBRATED_VALUE_MMOL = 3;	// show blood drop, ?NC (.28 -> .3)
-	static const uint8_t STOP_LIGHT_VALUE_MMOL = 4;				// show stop light, ?CD (.33 -> .3, set to .4 here)
-	static const uint8_t HOURGLASS_VALUE_MMOL = 5;				// show hourglass, hourglass (.50 -> .5)
-	static const uint8_t QUESTION_MARKS_VALUE_MMOL = 6;			// show ???, ??? (.56 -> .6)
-	static const uint8_t BAD_RF_VALUE_MMOL = 7;					// show broken antenna, ?RF (.67 -> .7)
+	const uint8_t SENSOR_NOT_ACTIVE_VALUE_MMOL = 1;		// show stop light, ?SN (.06 -> .1)
+	const uint8_t MINIMAL_DEVIATION_VALUE_MMOL = 1;		// show stop light, ?MD (.11 -> .1)
+	const uint8_t NO_ANTENNA_VALUE_MMOL = 2;				// show broken antenna, ?NA (.17 -> .2)
+	const uint8_t SENSOR_NOT_CALIBRATED_VALUE_MMOL = 3;	// show blood drop, ?NC (.28 -> .3)
+	const uint8_t STOP_LIGHT_VALUE_MMOL = 4;				// show stop light, ?CD (.33 -> .3, set to .4 here)
+	const uint8_t HOURGLASS_VALUE_MMOL = 5;				// show hourglass, hourglass (.50 -> .5)
+	const uint8_t QUESTION_MARKS_VALUE_MMOL = 6;			// show ???, ??? (.56 -> .6)
+	const uint8_t BAD_RF_VALUE_MMOL = 7;					// show broken antenna, ?RF (.67 -> .7)
 	
 	// ARRAY OF SPECIAL VALUES CONSTANTS; MGDL
 	uint8_t SPECVALUE_MGDL[] = {
@@ -825,20 +1013,20 @@ static void load_bg() {
 	};
 	
 	// INDEX FOR ARRAYS OF SPECIAL VALUES CONSTANTS
-	static const uint8_t SENSOR_NOT_ACTIVE_VALUE_INDX = 0;
-	static const uint8_t MINIMAL_DEVIATION_VALUE_INDX = 1;
-	static const uint8_t NO_ANTENNA_VALUE_INDX = 2;
-	static const uint8_t SENSOR_NOT_CALIBRATED_VALUE_INDX = 3;
-	static const uint8_t STOP_LIGHT_VALUE_INDX = 4;
-	static const uint8_t HOURGLASS_VALUE_INDX = 5;
-	static const uint8_t QUESTION_MARKS_VALUE_INDX = 6;
-	static const uint8_t BAD_RF_VALUE_INDX = 7;
+	const uint8_t SENSOR_NOT_ACTIVE_VALUE_INDX = 0;
+	const uint8_t MINIMAL_DEVIATION_VALUE_INDX = 1;
+	const uint8_t NO_ANTENNA_VALUE_INDX = 2;
+	const uint8_t SENSOR_NOT_CALIBRATED_VALUE_INDX = 3;
+	const uint8_t STOP_LIGHT_VALUE_INDX = 4;
+	const uint8_t HOURGLASS_VALUE_INDX = 5;
+	const uint8_t QUESTION_MARKS_VALUE_INDX = 6;
+	const uint8_t BAD_RF_VALUE_INDX = 7;
   
 	// VARIABLES 
 	
 	// pointers to be used to MGDL or MMOL values for parsing
 	uint16_t *bg_ptr = NULL;
-	uint8_t  *specvalue_ptr = NULL;
+	uint8_t *specvalue_ptr = NULL;
 	
 	// CODE START
 	
@@ -875,9 +1063,9 @@ static void load_bg() {
       lastAlertTime = 0;
       
       // check bluetooth
-      bluetooth_connected = bluetooth_connection_service_peek();
+      bluetooth_connected_cgm = bluetooth_connection_service_peek();
       
-      if (!bluetooth_connected) {
+      if (!bluetooth_connected_cgm) {
 	    // Bluetooth is out; set BT message
 		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BG INIT: NO BT, SET NO BT MESSAGE");
 		if (!TurnOff_NOBLUETOOTH_Msg) {
@@ -973,7 +1161,7 @@ static void load_bg() {
 	    // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!specvalue_overwrite)) { 
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: VIBRATE");
-          alert_handler(SPECVALUE_VIBE);        
+          alert_handler_cgm(SPECVALUE_VIBE);        
           // don't know where we are coming from, so reset last alert time no matter what
 		  // set to 1 to prevent bouncing connection
           lastAlertTime = 1;
@@ -1008,7 +1196,7 @@ static void load_bg() {
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!hypolow_overwrite)) { 
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, HYPO LOW: VIBRATE");
-          alert_handler(BIGLOWBG_VIBE);        
+          alert_handler_cgm(HYPOLOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!hypolow_overwrite) { hypolow_overwrite = true; }
         }
@@ -1039,7 +1227,7 @@ static void load_bg() {
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!biglow_overwrite)) { 
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BIG LOW: VIBRATE");
-          alert_handler(BIGLOWBG_VIBE);        
+          alert_handler_cgm(BIGLOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!biglow_overwrite) { biglow_overwrite = true; }
         }
@@ -1070,7 +1258,7 @@ static void load_bg() {
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!midlow_overwrite)) { 
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, MID LOW: VIBRATE");
-          alert_handler(LOWBG_VIBE);        
+          alert_handler_cgm(LOWBG_VIBE);        
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!midlow_overwrite) { midlow_overwrite = true; }
         }
@@ -1101,7 +1289,7 @@ static void load_bg() {
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!low_overwrite)) { 
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, LOW: VIBRATE");
-          alert_handler(LOWBG_VIBE); 
+          alert_handler_cgm(LOWBG_VIBE); 
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!low_overwrite) { low_overwrite = true; }
         }
@@ -1132,7 +1320,7 @@ static void load_bg() {
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!high_overwrite)) {  
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, HIGH: VIBRATE");
-          alert_handler(HIGHBG_VIBE);
+          alert_handler_cgm(HIGHBG_VIBE);
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!high_overwrite) { high_overwrite = true; }
         }
@@ -1161,7 +1349,7 @@ static void load_bg() {
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!midhigh_overwrite)) { 
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, MID HIGH: VIBRATE");
-          alert_handler(HIGHBG_VIBE);
+          alert_handler_cgm(HIGHBG_VIBE);
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!midhigh_overwrite) { midhigh_overwrite = true; }
         }
@@ -1191,7 +1379,7 @@ static void load_bg() {
         // send alert and handle a bouncing connection
         if ((lastAlertTime == 0) || (!bighigh_overwrite)) {
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BIG HIGH: VIBRATE");
-          alert_handler(BIGHIGHBG_VIBE);
+          alert_handler_cgm(BIGHIGHBG_VIBE);
           if (lastAlertTime == 0) { lastAlertTime = 1; }
           if (!bighigh_overwrite) { bighigh_overwrite = true; }
         }
@@ -1224,14 +1412,14 @@ static void load_bg() {
 	
 } // end load_bg
 
-static void load_readtime() {
-    //APP_LOG(APP_LOG_LEVEL_INFO, "READ CGM TIME FUNCTION START");
+static void load_cgmtime() {
+    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME FUNCTION START");
 	
 	// VARIABLES
 	// NOTE: buffers have to be static and hardcoded
-	static uint32_t current_cgm_timeago = 0;
+	uint32_t current_cgm_timeago = 0;
+	int cgm_timeago_diff = 0;
 	static char formatted_cgm_timeago[10];
-	static int cgm_timeago_diff = 0;
 	static char cgm_label_buffer[6];	
     
 	// CODE START
@@ -1239,11 +1427,11 @@ static void load_readtime() {
     // initialize label buffer
     strncpy(cgm_label_buffer, "", LABEL_BUFFER_SIZE);
        
-    //APP_LOG(APP_LOG_LEVEL_DEBUG, "NEW CGM TIME: %s", new_cgm_time);
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, NEW CGM TIME: %s", new_cgm_time);
     
     if (current_cgm_time == 0) {     
       // Init code or error code; set text layer & icon to empty value 
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "CGM TIME AGO INIT OR ERROR CODE: %s", cgm_label_buffer);
+      // APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CGM TIME AGO INIT OR ERROR CODE: %s", cgm_label_buffer);
       text_layer_set_text(cgmtime_layer, "");
       create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[NONE_TIMEAGO_ICON_INDX]);            
     }
@@ -1253,14 +1441,14 @@ static void load_readtime() {
       
       time_now = time(NULL);
       
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT CGM TIME: %lu", current_cgm_time);
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "TIME NOW IN CGM: %lu", time_now);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIME: %lu", current_cgm_time);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, TIME NOW IN CGM: %lu", time_now);
         
       current_cgm_timeago = abs(time_now - current_cgm_time);
         
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT CGM TIMEAGO: %lu", current_cgm_timeago);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIMEAGO: %lu", current_cgm_timeago);
       
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CGM TIME AGO LABEL IN: %s", cgm_label_buffer);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, GM TIME AGO LABEL IN: %s", cgm_label_buffer);
       
       if (current_cgm_timeago < MINUTEAGO) {
         cgm_timeago_diff = 0;
@@ -1294,14 +1482,14 @@ static void load_readtime() {
       // check to see if we need to show receiver off icon
       if ( (cgm_timeago_diff >= CGMOUT_WAIT_MIN) || ( (strcmp(cgm_label_buffer, "") != 0) && (strcmp(cgm_label_buffer, "m") != 0) ) ) {
 	    // set receiver off icon
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "SET RCVR OFF ICON, CGM TIMEAGO DIFF: %d", cgm_timeago_diff);
-		//APP_LOG(APP_LOG_LEVEL_DEBUG, "SET RCVR OFF ICON, LABEL: %s", cgm_label_buffer);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET RCVR OFF ICON, CGM TIMEAGO DIFF: %d", cgm_timeago_diff);
+		//APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET RCVR OFF ICON, LABEL: %s", cgm_label_buffer);
 		create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVROFF_ICON_INDX]);
 		
 		// Vibrate if we need to
 		if ((!CGMOffAlert) && (!PhoneOffAlert)) {
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD READTIME, CGM TIMEAGO: VIBRATE");
-		  alert_handler(CGMOUT_VIBE);
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME, CGM TIMEAGO: VIBRATE");
+		  alert_handler_cgm(CGMOUT_VIBE);
 		  CGMOffAlert = true;
 		}
 	  }
@@ -1311,18 +1499,17 @@ static void load_readtime() {
       }		
     } // else init code
     
-    //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD READTIME, CGM TIMEAGO LABEL OUT: %s", cgm_label_buffer);
-	
-} // end load_readtime
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CGM TIMEAGO LABEL OUT: %s", cgm_label_buffer);
+} // end load_cgmtime
 
-static void load_time_now(){
-    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD TIME NOW, READ APP TIME FUNCTION START");
+static void load_apptime(){
+    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, READ APP TIME FUNCTION START");
 	
 	// VARIABLES
 	// NOTE: buffers have to be static and hardcoded
-	static uint32_t current_app_timeago = 0;
+	uint32_t current_app_timeago = 0;
+	int app_timeago_diff = 0;
 	static char formatted_app_timeago[10];
-	static int app_timeago_diff = 0;
 	static char app_label_buffer[6];
 	  
 	// CODE START
@@ -1332,7 +1519,7 @@ static void load_time_now(){
     // initialize label buffer and icon
     strncpy(app_label_buffer, "", LABEL_BUFFER_SIZE);    
         
-    //APP_LOG(APP_LOG_LEVEL_DEBUG, "NEW APP TIME: %lu", current_app_time);
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, NEW APP TIME: %lu", current_app_time);
     
     // check for init or error code
     if (current_app_time == 0) {   
@@ -1345,11 +1532,11 @@ static void load_time_now(){
        
       time_now = time(NULL);
       
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "TIME NOW: %lu", time_now);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, TIME NOW: %lu", time_now);
       
       current_app_timeago = abs(time_now - current_app_time);
       
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT APP TIMEAGO: %lu", current_app_timeago);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, CURRENT APP TIMEAGO: %lu", current_app_timeago);
       
       if (current_app_timeago < (MINUTEAGO)) {
         app_timeago_diff = 0;
@@ -1378,10 +1565,10 @@ static void load_time_now(){
 		create_update_bitmap(&appicon_bitmap,appicon_layer,TIMEAGO_ICONS[NONE_TIMEAGO_ICON_INDX]);
       }
 	  
-	  //APP_LOG(APP_LOG_LEVEL_DEBUG, "FORMATTED APP TIMEAGO STRING: %s", formatted_app_timeago);
+	  //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, FORMATTED APP TIMEAGO STRING: %s", formatted_app_timeago);
       text_layer_set_text(time_app_layer, formatted_app_timeago);
       
-	  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD TIME NOW, CHECK FOR PHONE OFF ICON");
+	  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, CHECK FOR PHONE OFF ICON");
       // check to see if we need to set phone off icon
       if ( (app_timeago_diff >= PHONEOUT_WAIT_MIN) || ( (strcmp(app_label_buffer, "") != 0) && (strcmp(app_label_buffer, "m") != 0) ) ) {
 	    // set phone off icon
@@ -1391,11 +1578,11 @@ static void load_time_now(){
         text_layer_set_text(cgmtime_layer, "");
         create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[NONE_TIMEAGO_ICON_INDX]);
 		
-		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD TIME NOW, CHECK IF HAVE TO VIBRATE");
+		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, CHECK IF HAVE TO VIBRATE");
 		// Vibrate if we need to
 		if (!PhoneOffAlert) {
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD TIME NOW, READ APP TIMEAGO: VIBRATE");
-		  alert_handler(PHONEOUT_VIBE);
+		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, READ APP TIMEAGO: VIBRATE");
+		  alert_handler_cgm(PHONEOUT_VIBE);
 		  PhoneOffAlert = true;
 		}
 	  }
@@ -1405,17 +1592,16 @@ static void load_time_now(){
       }		
     } // else init code 
 	
-	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD TIME NOW, FUNCTION OUT");
-	
-} // end load_time_now
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, FUNCTION OUT");
+} // end load_apptime
 
 static void load_bg_delta() {
 	//APP_LOG(APP_LOG_LEVEL_INFO, "BG DELTA FUNCTION START");
 	
 	// CONSTANTS
-	static const uint8_t MSGLAYER_BUFFER_SIZE = 14;
-	static const uint8_t BGDELTA_LABEL_SIZE = 14;
-	static const uint8_t BGDELTA_FORMATTED_SIZE = 14;
+	const uint8_t MSGLAYER_BUFFER_SIZE = 14;
+	const uint8_t BGDELTA_LABEL_SIZE = 14;
+	const uint8_t BGDELTA_FORMATTED_SIZE = 14;
 	
 	// VARIABLES
 	// NOTE: buffers have to be static and hardcoded
@@ -1425,9 +1611,9 @@ static void load_bg_delta() {
 	// CODE START
 	
 	// check bluetooth connection
-	bluetooth_connected = bluetooth_connection_service_peek();
+	bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-    if (!bluetooth_connected) {
+    if (!bluetooth_connected_cgm) {
 	  // Bluetooth is out; BT message already set, so return
 	  return;
     }
@@ -1444,24 +1630,38 @@ static void load_bg_delta() {
     return;	
 	}
 	
-	// check for special messages
+	// check for special messages; if no string, set no message
 	if (strcmp(current_bg_delta, "") == 0) {
       strncpy(formatted_bg_delta, "", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       return;	
     }
-  
+	
+  	// check for NO ENDPOINT condition, if true set message
+	// put " " (space) in bg field so logo continues to show
+	if (strcmp(current_bg_delta, "NOEP") == 0) {
+      strncpy(formatted_bg_delta, "NO ENDPOINT", MSGLAYER_BUFFER_SIZE);
+      text_layer_set_text(message_layer, formatted_bg_delta);
+      text_layer_set_text(bg_layer, " ");
+	  create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
+      specvalue_alert = false;
+      return;	
+	}
+
+  	// check for DATA OFFLINE condition, if true set message to fix condition	
     if (strcmp(current_bg_delta, "ERR") == 0) {
-      strncpy(formatted_bg_delta, "DATA OFFLINE", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "RSTRT PHONE", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, "");
       return;	
     }
   
+  	// check if LOADING.., if true set message
+	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
       strncpy(formatted_bg_delta, "LOADING...", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
-      text_layer_set_text(bg_layer, "");
+      text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
       specvalue_alert = false;
       return;	
@@ -1531,13 +1731,13 @@ static void load_bg_delta() {
 } // end load_bg_delta
 
 static void load_battlevel() {
-    //APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL FUNCTION START");
+    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, FUNCTION START");
 
 	// CONSTANTS
-	static const uint8_t BATTLEVEL_FORMATTED_SIZE = 6;
+	const uint8_t BATTLEVEL_FORMATTED_SIZE = 6;
 	
 	// ARRAY OF BATTERY LEVEL ICONS
-	static const uint32_t BATTLEVEL_ICONS[] = {
+	const uint32_t BATTLEVEL_ICONS[] = {
 	  RESOURCE_ID_IMAGE_BATTEMPTY,  //0
 	  RESOURCE_ID_IMAGE_BATT10,     //1
 	  RESOURCE_ID_IMAGE_BATT20,     //2
@@ -1553,54 +1753,64 @@ static void load_battlevel() {
 	};
     
 	// INDEX FOR ARRAY OF BATTERY LEVEL ICONS
-	static const uint8_t BATTEMPTY_ICON_INDX = 0;
-	static const uint8_t BATT10_ICON_INDX = 1;
-	static const uint8_t BATT20_ICON_INDX = 2;
-	static const uint8_t BATT30_ICON_INDX = 3;
-	static const uint8_t BATT40_ICON_INDX = 4;
-	static const uint8_t BATT50_ICON_INDX = 5;
-	static const uint8_t BATT60_ICON_INDX = 6;
-	static const uint8_t BATT70_ICON_INDX = 7;
-	static const uint8_t BATT80_ICON_INDX = 8;
-	static const uint8_t BATT90_ICON_INDX = 9;
-	static const uint8_t BATTFULL_ICON_INDX = 10;
-	static const uint8_t BATTNONE_ICON_INDX = 11;
+	const uint8_t BATTEMPTY_ICON_INDX = 0;
+	const uint8_t BATT10_ICON_INDX = 1;
+	const uint8_t BATT20_ICON_INDX = 2;
+	const uint8_t BATT30_ICON_INDX = 3;
+	const uint8_t BATT40_ICON_INDX = 4;
+	const uint8_t BATT50_ICON_INDX = 5;
+	const uint8_t BATT60_ICON_INDX = 6;
+	const uint8_t BATT70_ICON_INDX = 7;
+	const uint8_t BATT80_ICON_INDX = 8;
+	const uint8_t BATT90_ICON_INDX = 9;
+	const uint8_t BATTFULL_ICON_INDX = 10;
+	const uint8_t BATTNONE_ICON_INDX = 11;
 	
 	// VARIABLES
 	// NOTE: buffers have to be static and hardcoded
-	static int current_battlevel = 0;
+	int current_battlevel = 0;
 	static char battlevel_percent[6];
 	
 	// CODE START
 	
+	// initialize inverter layer to hide
+	layer_set_hidden((Layer *)inv_battlevel_layer, true);
     
-	//APP_LOG(APP_LOG_LEVEL_DEBUG, "BATTERY LEVEL, LAST BATTLEVEL: %s", last_battlevel);
+	//APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BATTLEVEL, LAST BATTLEVEL: %s", last_battlevel);
   
 	if (strcmp(last_battlevel, " ") == 0) {
       // Init code or no battery, can't do battery; set text layer & icon to empty value 
-      //APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL, NO BATTERY");
+      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, NO BATTERY");
       text_layer_set_text(battlevel_layer, "");
-      create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATTNONE_ICON_INDX]);  
+      create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATTNONE_ICON_INDX]); 
+      LowBatteryAlert = false;	  
       return;
     }
   
 	if (strcmp(last_battlevel, "0") == 0) {
       // Zero battery level; set here, so if we get zero later we know we have an error instead
-      //APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL, ZERO BATTERY, SET STRING");
+      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, ZERO BATTERY, SET STRING");
       text_layer_set_text(battlevel_layer, "0%");
-      //APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL, ZERO BATTERY, SET ICON");
+      layer_set_hidden((Layer *)inv_battlevel_layer, false);
+      if (!LowBatteryAlert) {
+		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, ZERO BATTERY, VIBRATE");
+		alert_handler_cgm(LOWBATTERY_VIBE);
+		LowBatteryAlert = true;
+      }	  
+      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, ZERO BATTERY, SET ICON");
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATTEMPTY_ICON_INDX]);
       return;
     }
   
 	current_battlevel = myAtoi(last_battlevel);
   
-	//APP_LOG(APP_LOG_LEVEL_DEBUG, "BATTERY LEVEL, CURRENT BATTLEVEL: %i", current_battlevel);
+	//APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BATTLEVEL, CURRENT BATTLEVEL: %i", current_battlevel);
   
 	if ((current_battlevel <= 0) || (current_battlevel > 100) || (last_battlevel[0] == '-')) { 
       // got a negative or out of bounds or error battery level
-	  //APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL, UNKNOWN, ERROR BATTERY");
+	  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, UNKNOWN, ERROR BATTERY");
 	  text_layer_set_text(battlevel_layer, "ERR");
+	  layer_set_hidden((Layer *)inv_battlevel_layer, false);
 	  create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATTNONE_ICON_INDX]);
     return;
 	}
@@ -1610,51 +1820,77 @@ static void load_battlevel() {
     text_layer_set_text(battlevel_layer, battlevel_percent);
 
     // check battery level, set battery level icon
-    if ( (current_battlevel >= 90) && (current_battlevel <= 100) ) {
+    if ( (current_battlevel > 90) && (current_battlevel <= 100) ) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATTFULL_ICON_INDX]);
+	  LowBatteryAlert = false;
     }
-    else if (current_battlevel >= 80) {
+    else if (current_battlevel > 80) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT90_ICON_INDX]);
+	  LowBatteryAlert = false;
     }
-    else if (current_battlevel >= 70) {
+    else if (current_battlevel > 70) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT80_ICON_INDX]);
+	  LowBatteryAlert = false;
     }
-    else if (current_battlevel >= 60) {
+    else if (current_battlevel > 60) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT70_ICON_INDX]);
+	  LowBatteryAlert = false;
     }
-    else if (current_battlevel >= 50) {
+    else if (current_battlevel > 50) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT60_ICON_INDX]);
+	  LowBatteryAlert = false;
     }
-    else if (current_battlevel >= 40) {
+    else if (current_battlevel > 40) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT50_ICON_INDX]);
+	  LowBatteryAlert = false;
     }
-    else if (current_battlevel >= 30) {
+    else if (current_battlevel > 30) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT40_ICON_INDX]);
+	  LowBatteryAlert = false;
     }
-    else if (current_battlevel >= 20) {
+    else if (current_battlevel > 20) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT30_ICON_INDX]);
+	  LowBatteryAlert = false;
     }
-    else if (current_battlevel >= 10) {
+    else if (current_battlevel > 10) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT20_ICON_INDX]);
+      layer_set_hidden((Layer *)inv_battlevel_layer, false);
+      if (!LowBatteryAlert) {
+		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, LOW BATTERY, 20 OR LESS, VIBRATE");
+		alert_handler_cgm(LOWBATTERY_VIBE);
+		LowBatteryAlert = true;
+      }
     }
-    else if (current_battlevel >= 5) {
+    else if (current_battlevel > 5) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATT10_ICON_INDX]);
+      layer_set_hidden((Layer *)inv_battlevel_layer, false);
+      if (!LowBatteryAlert) {
+		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, LOW BATTERY, 10 OR LESS, VIBRATE");
+		alert_handler_cgm(LOWBATTERY_VIBE);
+		LowBatteryAlert = true;
+      }
     }
-    else if ( (current_battlevel > 0) && (current_battlevel < 5) ) {
+    else if ( (current_battlevel > 0) && (current_battlevel <= 5) ) {
       create_update_bitmap(&batticon_bitmap,batticon_layer,BATTLEVEL_ICONS[BATTEMPTY_ICON_INDX]);
+      layer_set_hidden((Layer *)inv_battlevel_layer, false);
+      if (!LowBatteryAlert) {
+		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, LOW BATTERY, 5 OR LESS, VIBRATE");
+		alert_handler_cgm(LOWBATTERY_VIBE);
+		LowBatteryAlert = true;
+      }	  
     }
 	
-	//APP_LOG(APP_LOG_LEVEL_INFO, "BATTERY LEVEL, END FUNCTION");
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, END FUNCTION");
 } // end load_battlevel
 
-static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tuple, const Tuple* old_tuple, void* context) {
+void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple, const Tuple* old_tuple, void* context) {
 	//APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE");
 	
 	// CONSTANTS
-	static const uint8_t ICON_MSGSTR_SIZE = 4;
-	static const uint8_t BG_MSGSTR_SIZE = 6;
-	static const uint8_t BGDELTA_MSGSTR_SIZE = 6;
-	static const uint8_t BATTLEVEL_MSGSTR_SIZE = 4;
+	const uint8_t ICON_MSGSTR_SIZE = 4;
+	const uint8_t BG_MSGSTR_SIZE = 6;
+	const uint8_t BGDELTA_MSGSTR_SIZE = 6;
+	const uint8_t BATTLEVEL_MSGSTR_SIZE = 4;
 
 	// CODE START
 	
@@ -1672,46 +1908,47 @@ static void sync_tuple_changed_callback(const uint32_t key, const Tuple* new_tup
       load_bg();
       break; // break for CGM_BG_KEY
 
-	case CGM_READTIME_KEY:;
+	case CGM_TCGM_KEY:;
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: READ CGM TIME");
 	  current_cgm_time = new_tuple->value->uint32;
-      load_readtime();
-      break; // break for CGM_READTIME_KEY
+      load_cgmtime();
+      break; // break for CGM_TCGM_KEY
 
-	case CGM_TIME_NOW:;
+	case CGM_TAPP_KEY:;
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: READ APP TIME NOW");
 	  current_app_time = new_tuple->value->uint32;
-      load_time_now();    
-      break; // break for CGM_TIME_NOW
+      load_apptime();    
+      break; // break for CGM_TAPP_KEY
 
-	case CGM_DELTA_KEY:;
+	case CGM_DLTA_KEY:;
    	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BG DELTA");
 	  strncpy(current_bg_delta, new_tuple->value->cstring, BGDELTA_MSGSTR_SIZE);
 	  load_bg_delta();
-	  break; // break for CGM_DELTA_KEY
+	  break; // break for CGM_DLTA_KEY
 	
-	case CGM_BATTLEVEL_KEY:;
+	case CGM_UBAT_KEY:;
+   	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: UPLOADER BATTERY LEVEL");
    	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL IN, COPY LAST BATTLEVEL");
       strncpy(last_battlevel, new_tuple->value->cstring, BATTLEVEL_MSGSTR_SIZE);
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL, CALL LOAD BATTLEVEL");
       load_battlevel();
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL OUT");
-      break; // break for CGM_BATTLEVEL_KEY
+      break; // break for CGM_UBAT_KEY
 
-	case CGM_T1DNAME_KEY:
+	case CGM_NAME_KEY:
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: T1D NAME");
       text_layer_set_text(t1dname_layer, new_tuple->value->cstring);
-      break; // break for CGM_T1DNAME_KEY
+      break; // break for CGM_NAME_KEY
 	  
   }  // end switch(key)
 
-} // end sync_tuple_changed_callback()
+} // end sync_tuple_changed_callback_cgm()
 
-static void send_cmd(void) {
+static void send_cmd_cgm(void) {
   
   DictionaryIterator *iter = NULL;
-  static AppMessageResult sendcmd_openerr = APP_MSG_OK;
-  static AppMessageResult sendcmd_senderr = APP_MSG_OK;
+  AppMessageResult sendcmd_openerr = APP_MSG_OK;
+  AppMessageResult sendcmd_senderr = APP_MSG_OK;
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD IN, ABOUT TO OPEN APP MSG OUTBOX");
   sendcmd_openerr = app_message_outbox_begin(&iter);
@@ -1734,40 +1971,40 @@ static void send_cmd(void) {
 
   //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD OUT, SENT MSG TO APP");
   
-} // end send_cmd
+} // end send_cmd_cgm
 
-static void timer_callback(void *data) {
+void timer_callback_cgm(void *data) {
 
   //APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK IN, TIMER POP, ABOUT TO CALL SEND CMD");
   // reset msg timer to NULL
-  if (timer != NULL) {
-    timer = NULL;
+  if (timer_cgm != NULL) {
+    timer_cgm = NULL;
   }
   
   // send message
-  send_cmd();
+  send_cmd_cgm();
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK, SEND CMD DONE, ABOUT TO REGISTER TIMER");
   // set msg timer
-  timer = app_timer_register((WATCH_MSGSEND_SECS*MS_IN_A_SECOND), timer_callback, NULL);
+  timer_cgm = app_timer_register((WATCH_MSGSEND_SECS*MS_IN_A_SECOND), timer_callback_cgm, NULL);
 
   //APP_LOG(APP_LOG_LEVEL_INFO, "TIMER CALLBACK, REGISTER TIMER DONE");
   
-} // end timer_callback
+} // end timer_callback_cgm
 
 // format current time from watch
 
-static void handle_minute_tick(struct tm* tick_time, TimeUnits units_changed) {
+void handle_minute_tick_cgm(struct tm* tick_time_cgm, TimeUnits units_changed_cgm) {
   
   // VARIABLES
-  size_t tick_return = 0;
+  size_t tick_return_cgm = 0;
   
   // CODE START
   
-  if (units_changed & MINUTE_UNIT) {
+  if (units_changed_cgm & MINUTE_UNIT) {
     //APP_LOG(APP_LOG_LEVEL_INFO, "TICK TIME MINUTE CODE");
-    tick_return = strftime(time_watch_text, TIME_TEXTBUFF_SIZE, "%l:%M", tick_time);
-	if (tick_return != 0) {
+    tick_return_cgm = strftime(time_watch_text, TIME_TEXTBUFF_SIZE, "%l:%M", tick_time_cgm);
+	if (tick_return_cgm != 0) {
       text_layer_set_text(time_watch_layer, time_watch_text);
 	}
 	
@@ -1777,23 +2014,25 @@ static void handle_minute_tick(struct tm* tick_time, TimeUnits units_changed) {
 	//APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime OUT:  %i", lastAlertTime);
 	
   } 
-  else if (units_changed & DAY_UNIT) {
+  else if (units_changed_cgm & DAY_UNIT) {
     //APP_LOG(APP_LOG_LEVEL_INFO, "TICK TIME DAY CODE");
-    tick_return = strftime(date_app_text, DATE_TEXTBUFF_SIZE, "%a %d", tick_time);
-	if (tick_return != 0) {
+    tick_return_cgm = strftime(date_app_text, DATE_TEXTBUFF_SIZE, "%a %d", tick_time_cgm);
+	if (tick_return_cgm != 0) {
       text_layer_set_text(date_app_layer, date_app_text);
 	}
   }
   
-} // end handle_minute_tick
+} // end handle_minute_tick_cgm
 
-static void window_load(Window *window) {
+void window_load_cgm(Window *window_cgm) {
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD");
   
   // VARIABLES
-  Layer *window_layer = window_get_root_layer(window);
+  Layer *window_layer_cgm = NULL;
   
   // CODE START
+
+  window_layer_cgm = window_get_root_layer(window_cgm);
   
   // DELTA BG
   message_layer = text_layer_create(GRect(0, 33, 144, 55));
@@ -1801,19 +2040,19 @@ static void window_load(Window *window) {
   text_layer_set_background_color(message_layer, GColorWhite);
   text_layer_set_font(message_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
   text_layer_set_text_alignment(message_layer, GTextAlignmentCenter);
-  layer_add_child(window_layer, text_layer_get_layer(message_layer));
+  layer_add_child(window_layer_cgm, text_layer_get_layer(message_layer));
 
   // ARROW OR SPECIAL VALUE
   icon_layer = bitmap_layer_create(GRect(85, -7, 78, 50));
   bitmap_layer_set_alignment(icon_layer, GAlignTopLeft);
   bitmap_layer_set_background_color(icon_layer, GColorWhite);
-  layer_add_child(window_layer, bitmap_layer_get_layer(icon_layer));
+  layer_add_child(window_layer_cgm, bitmap_layer_get_layer(icon_layer));
 
   // APP TIME AGO ICON
   appicon_layer = bitmap_layer_create(GRect(118, 63, 40, 24));
   bitmap_layer_set_alignment(appicon_layer, GAlignLeft);
   bitmap_layer_set_background_color(appicon_layer, GColorWhite);
-  layer_add_child(window_layer, bitmap_layer_get_layer(appicon_layer));  
+  layer_add_child(window_layer_cgm, bitmap_layer_get_layer(appicon_layer));  
 
   // APP TIME AGO READING
   time_app_layer = text_layer_create(GRect(77, 58, 40, 24));
@@ -1821,7 +2060,7 @@ static void window_load(Window *window) {
   text_layer_set_background_color(time_app_layer, GColorClear);
   text_layer_set_font(time_app_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
   text_layer_set_text_alignment(time_app_layer, GTextAlignmentRight);
-  layer_add_child(window_layer, text_layer_get_layer(time_app_layer));
+  layer_add_child(window_layer_cgm, text_layer_get_layer(time_app_layer));
   
   // BG
   bg_layer = text_layer_create(GRect(0, -5, 95, 47));
@@ -1829,13 +2068,13 @@ static void window_load(Window *window) {
   text_layer_set_background_color(bg_layer, GColorWhite);
   text_layer_set_font(bg_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
   text_layer_set_text_alignment(bg_layer, GTextAlignmentCenter);
-  layer_add_child(window_layer, text_layer_get_layer(bg_layer));
+  layer_add_child(window_layer_cgm, text_layer_get_layer(bg_layer));
 
   // CGM TIME AGO ICON
   cgmicon_layer = bitmap_layer_create(GRect(5, 63, 40, 24));
   bitmap_layer_set_alignment(cgmicon_layer, GAlignLeft);
   bitmap_layer_set_background_color(cgmicon_layer, GColorWhite);
-  layer_add_child(window_layer, bitmap_layer_get_layer(cgmicon_layer));  
+  layer_add_child(window_layer_cgm, bitmap_layer_get_layer(cgmicon_layer));  
   
   // CGM TIME AGO READING
   cgmtime_layer = text_layer_create(GRect(28, 58, 40, 24));
@@ -1843,7 +2082,7 @@ static void window_load(Window *window) {
   text_layer_set_background_color(cgmtime_layer, GColorClear);
   text_layer_set_font(cgmtime_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
   text_layer_set_text_alignment(cgmtime_layer, GTextAlignmentLeft);
-  layer_add_child(window_layer, text_layer_get_layer(cgmtime_layer));
+  layer_add_child(window_layer_cgm, text_layer_get_layer(cgmtime_layer));
 
   // T1D NAME
   t1dname_layer = text_layer_create(GRect(5, 138, 69, 28));
@@ -1851,13 +2090,13 @@ static void window_load(Window *window) {
   text_layer_set_background_color(t1dname_layer, GColorClear);
   text_layer_set_font(t1dname_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
   text_layer_set_text_alignment(t1dname_layer, GTextAlignmentLeft);
-  layer_add_child(window_layer, text_layer_get_layer(t1dname_layer));
+  layer_add_child(window_layer_cgm, text_layer_get_layer(t1dname_layer));
 
   // BATTERY LEVEL ICON
   batticon_layer = bitmap_layer_create(GRect(80, 147, 28, 20));
   bitmap_layer_set_alignment(batticon_layer, GAlignLeft);
   bitmap_layer_set_background_color(batticon_layer, GColorBlack);
-  layer_add_child(window_layer, bitmap_layer_get_layer(batticon_layer));
+  layer_add_child(window_layer_cgm, bitmap_layer_get_layer(batticon_layer));
 
   // BATTERY LEVEL
   battlevel_layer = text_layer_create(GRect(110, 144, 38, 20));
@@ -1865,7 +2104,11 @@ static void window_load(Window *window) {
   text_layer_set_background_color(battlevel_layer, GColorBlack);
   text_layer_set_font(battlevel_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   text_layer_set_text_alignment(battlevel_layer, GTextAlignmentLeft);
-  layer_add_child(window_layer, text_layer_get_layer(battlevel_layer));
+  layer_add_child(window_layer_cgm, text_layer_get_layer(battlevel_layer));
+  
+  // INVERTER BATTERY LAYER
+  inv_battlevel_layer = inverter_layer_create(GRect(110, 149, 38, 15));
+  layer_add_child(window_get_root_layer(window_cgm), inverter_layer_get_layer(inv_battlevel_layer));
 
   // CURRENT ACTUAL TIME FROM WATCH
   time_watch_layer = text_layer_create(GRect(0, 82, 144, 44));
@@ -1873,7 +2116,7 @@ static void window_load(Window *window) {
   text_layer_set_background_color(time_watch_layer, GColorClear);
   text_layer_set_font(time_watch_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
   text_layer_set_text_alignment(time_watch_layer, GTextAlignmentCenter);
-  layer_add_child(window_layer, text_layer_get_layer(time_watch_layer));
+  layer_add_child(window_layer_cgm, text_layer_get_layer(time_watch_layer));
   
   // CURRENT ACTUAL DATE FROM APP
   date_app_layer = text_layer_create(GRect(0, 120, 144, 25));
@@ -1882,49 +2125,53 @@ static void window_load(Window *window) {
   text_layer_set_font(date_app_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
   text_layer_set_text_alignment(date_app_layer, GTextAlignmentCenter);
   draw_date_from_app();
-  layer_add_child(window_layer, text_layer_get_layer(date_app_layer));
+  layer_add_child(window_layer_cgm, text_layer_get_layer(date_app_layer));
   
-  Tuplet initial_values[] = {
+  // put " " (space) in bg field so logo continues to show
+  // " " (space) also shows these are init values, not bad or null values
+  Tuplet initial_values_cgm[] = {
     TupletCString(CGM_ICON_KEY, " "),
 	TupletCString(CGM_BG_KEY, " "),
-	TupletInteger(CGM_READTIME_KEY, 0),
-	TupletInteger(CGM_TIME_NOW, 0),
-	TupletCString(CGM_DELTA_KEY, "LOAD"),
-	TupletCString(CGM_BATTLEVEL_KEY, " "),
-	TupletCString(CGM_T1DNAME_KEY, " ")
+	TupletInteger(CGM_TCGM_KEY, 0),
+	TupletInteger(CGM_TAPP_KEY, 0),
+	TupletCString(CGM_DLTA_KEY, "LOAD"),
+	TupletCString(CGM_UBAT_KEY, " "),
+	TupletCString(CGM_NAME_KEY, " ")
   };
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, ABOUT TO CALL APP SYNC INIT");
+  app_sync_init(&sync_cgm, sync_buffer_cgm, sizeof(sync_buffer_cgm), initial_values_cgm, ARRAY_LENGTH(initial_values_cgm), sync_tuple_changed_callback_cgm, sync_error_callback_cgm, NULL);
   
-  app_sync_init(&sync, sync_buffer, sizeof(sync_buffer), initial_values, ARRAY_LENGTH(initial_values), sync_tuple_changed_callback, sync_error_callback, NULL);
-  
-  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, APP INIT DONE, ABOUT TO REGISTER TIMER");
-  
-  if (timer != NULL) {
-    timer = NULL;
+  // init timer to null if needed, and register timer
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, APP INIT DONE, ABOUT TO REGISTER TIMER");  
+  if (timer_cgm != NULL) {
+    timer_cgm = NULL;
   }
-  timer = app_timer_register((LOADING_MSGSEND_SECS*MS_IN_A_SECOND), timer_callback, NULL);
-  
+  timer_cgm = app_timer_register((LOADING_MSGSEND_SECS*MS_IN_A_SECOND), timer_callback_cgm, NULL);
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, TIMER REGISTER DONE");
   
-} // end window_load
+} // end window_load_cgm
 
-static void window_unload(Window *window) {
+void window_unload_cgm(Window *window_cgm) {
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD IN");
   
-  app_sync_deinit(&sync);
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, APP SYNC DEINIT");
+  app_sync_deinit(&sync_cgm);
 
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY GBITMAPS IF EXIST");
   destroy_null_GBitmap(&icon_bitmap);
   destroy_null_GBitmap(&appicon_bitmap);
   destroy_null_GBitmap(&cgmicon_bitmap);
   destroy_null_GBitmap(&specialvalue_bitmap);
   destroy_null_GBitmap(&batticon_bitmap);
-  
+
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY BITMAPS IF EXIST");  
   destroy_null_BitmapLayer(&icon_layer);
   destroy_null_BitmapLayer(&cgmicon_layer);
   destroy_null_BitmapLayer(&appicon_layer);
   destroy_null_BitmapLayer(&batticon_layer);
-  
+
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY TEXT LAYERS IF EXIST");  
   destroy_null_TextLayer(&bg_layer);
   destroy_null_TextLayer(&cgmtime_layer);
   destroy_null_TextLayer(&message_layer);
@@ -1933,78 +2180,95 @@ static void window_unload(Window *window) {
   destroy_null_TextLayer(&time_watch_layer);
   destroy_null_TextLayer(&time_app_layer);
   destroy_null_TextLayer(&date_app_layer);
+
+  //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY INVERTER LAYERS IF EXIST");  
+  destroy_null_InverterLayer(&inv_battlevel_layer);
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD OUT");
-  
-} // end window_unload
+} // end window_unload_cgm
 
-static void init(void) {
+static void init_cgm(void) {
   //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE IN");
   
   // subscribe to the tick timer service
-  tick_timer_service_subscribe(MINUTE_UNIT, &handle_minute_tick);
+  tick_timer_service_subscribe(MINUTE_UNIT, &handle_minute_tick_cgm);
 
   // subscribe to the bluetooth connection service
-  bluetooth_connection_service_subscribe(handle_bluetooth);
+  bluetooth_connection_service_subscribe(handle_bluetooth_cgm);
+  
+  // init the window pointer to NULL if it needs it
+  if (window_cgm != NULL) {
+    window_cgm = NULL;
+  }
   
   // create the windows
-  window = window_create();
-  window_set_background_color(window, GColorBlack);
-  window_set_fullscreen(window, true);
-  window_set_window_handlers(window, (WindowHandlers) {
-    .load = window_load,
-	.unload = window_unload  
+  window_cgm = window_create();
+  window_set_background_color(window_cgm, GColorBlack);
+  window_set_fullscreen(window_cgm, true);
+  window_set_window_handlers(window_cgm, (WindowHandlers) {
+    .load = window_load_cgm,
+	.unload = window_unload_cgm  
   });
 
-  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, ABOUT TO CALL APP MSG OPEN");
+  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, REGISTER APP MESSAGE ERROR HANDLERS"); 
+  app_message_register_inbox_dropped(inbox_dropped_handler_cgm);
+  app_message_register_outbox_failed(outbox_failed_handler_cgm);
   
+  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, ABOUT TO CALL APP MSG OPEN"); 
   app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
-
   //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, APP MSG OPEN DONE");
   
-  const bool animated = true;
-  window_stack_push(window, animated);
+  const bool animated_cgm = true;
+  window_stack_push(window_cgm, animated_cgm);
   
-  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE OUT");
-  
-}  // end init
+  //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE OUT"); 
+}  // end init_cgm
 
-static void deinit(void) {
-  //APP_LOG(APP_LOG_LEVEL_INFO, "DE-INIT CODE IN");
+static void deinit_cgm(void) {
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT CODE IN");
   
   // unsubscribe to the tick timer service
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT, UNSUBSCRIBE TICK TIMER");
   tick_timer_service_unsubscribe();
 
   // unsubscribe to the bluetooth connection service
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT, UNSUBSCRIBE BLUETOOTH");
   bluetooth_connection_service_unsubscribe();
   
   // cancel timers if they exist
-  if (timer != NULL) {
-    app_timer_cancel(timer);
-	timer = NULL;
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT, CANCEL APP TIMER");
+  if (timer_cgm != NULL) {
+    app_timer_cancel(timer_cgm);
+    timer_cgm = NULL;
   }
   
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT, CANCEL BLUETOOTH TIMER");
   if (BT_timer != NULL) {
     app_timer_cancel(BT_timer);
-	BT_timer = NULL;
+    BT_timer = NULL;
   }
   
-  // destroy the window
-  window_destroy(window);
-  if (window != NULL) {
-    window = NULL;
+  // destroy the window if it exists
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT, CHECK WINDOW POINTER FOR DESTROY");
+  if (window_cgm != NULL) {
+    //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT, WINDOW POINTER NOT NULL, DESTROY");
+    window_destroy(window_cgm);
+  }
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT, CHECK WINDOW POINTER FOR NULL");
+  if (window_cgm != NULL) {
+    //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT, WINDOW POINTER NOT NULL, SET TO NULL");
+    window_cgm = NULL;
   }
   
-  //APP_LOG(APP_LOG_LEVEL_INFO, "DE-INIT CODE OUT");
-  
-} // end deinit
+  //APP_LOG(APP_LOG_LEVEL_INFO, "DEINIT CODE OUT");
+} // end deinit_cgm
 
 int main(void) {
 
-  init();
+  init_cgm();
 
   app_event_loop();
-  deinit();
+  deinit_cgm();
   
 } // end main
 

@@ -1,12 +1,12 @@
 {
     "appKeys": {
-        "battlevel": 5,
         "bg": 1,
-        "delta": 4,
+        "dlta": 4,
         "icon": 0,
-        "readtime": 2,
-        "t1dname": 6,
-        "time": 3
+        "name": 6,
+        "tapp": 3,
+        "tcgm": 2,
+        "ubat": 5
     },
     "capabilities": [
         "configurable"
@@ -182,7 +182,7 @@
     "shortName": "NEW Nightscout",
     "uuid": "4bfa0b46-b9fa-4e1a-b2ba-a2ba7168f897",
     "versionCode": 11,
-    "versionLabel": "5.1",
+    "versionLabel": "5.2",
     "watchapp": {
         "watchface": true
     }

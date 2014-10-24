@@ -10,6 +10,25 @@ function fetchCgmData() {
     var opts = [ ].slice.call(arguments).pop( );
     opts = JSON.parse(window.localStorage.getItem('cgmPebble'));
 
+	// check if endpoint exists
+    if (!opts.endpoint) {
+        // endpoint doesn't exist, return no endpoint to watch
+		// " " (space) shows these are init values, not bad or null values
+        message = {
+          icon: " ",
+          bg: " ",
+          tcgm: 0,
+          tapp: 0,
+          dlta: "NOEP",
+          ubat: " ",
+          name: " "
+        };
+        
+        console.log("NO ENDPOINT JS message", JSON.stringify(message));
+        MessageQueue.sendAppMessage(message);
+        return;
+    } // if (!opts.endpoint)
+	
     // show current options
     //console.log("fetchCgmData IN OPTIONS = " + JSON.stringify(opts));
   
@@ -20,7 +39,7 @@ function fetchCgmData() {
     req.open('GET', opts.endpoint, true);
     
     req.setRequestHeader('Cache-Control', 'no-cache');
-    
+	
     req.onload = function(e) {
 
         if (req.readyState == 4) {
@@ -113,11 +132,11 @@ function fetchCgmData() {
                     message = {
                       icon: currentIcon,
                       bg: currentBG,
-                      readtime: formatReadTime,
-                      time: formatAppTime,
-                      delta: formatBGDelta,
-                      battlevel: currentBattery,
-                      t1dname: NameofT1DPerson
+                      tcgm: formatReadTime,
+                      tapp: formatAppTime,
+                      dlta: formatBGDelta,
+                      ubat: currentBattery,
+                      name: NameofT1DPerson
                     };
                     
                     // send message data to log and to watch
@@ -128,14 +147,15 @@ function fetchCgmData() {
                 // have to send space in BG field for logo to show up on screen				
                 } else {
                   
+                    // " " (space) shows these are init values (even though it's an error), not bad or null values
                     message = {
                       icon: " ",
                       bg: " ",
-                      readtime: 0,
-                      time: 0,
-                      delta: "ERR",
-                      battlevel: " ",
-                      t1dname: " "
+                      tcgm: 0,
+                      tapp: 0,
+                      dlta: "ERR",
+                      ubat: " ",
+                      name: " "
                     };
                   
                     console.log("DATA OFFLINE JS message", JSON.stringify(message));
@@ -299,7 +319,7 @@ Pebble.addEventListener("appmessage",
 
 Pebble.addEventListener("showConfiguration", function(e) {
                         console.log("Showing Configuration", JSON.stringify(e));
-                        Pebble.openURL('http://m2oore.github.io/cgm-pebble/configurable.html');
+                        Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-4.2.0.html');
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {
