@@ -110,11 +110,11 @@ static const uint8_t TIMEAGO_BUFFER_SIZE = 10;
 
 // BG Ranges, MG/DL
 static const uint16_t SPECVALUE_BG_MGDL = 20;
-static const uint16_t SHOWLOW_BG_MGDL = 40;
-static const uint16_t HYPOLOW_BG_MGDL = 55;
-static const uint16_t BIGLOW_BG_MGDL = 60;
-static const uint16_t MIDLOW_BG_MGDL = 70;
-static const uint16_t LOW_BG_MGDL = 80;
+static const uint16_t SHOWLOW_BG_MGDL = 25;
+static const uint16_t HYPOLOW_BG_MGDL = 30;
+static const uint16_t BIGLOW_BG_MGDL = 40;
+static const uint16_t MIDLOW_BG_MGDL = 50;
+static const uint16_t LOW_BG_MGDL = 60;
 
 static const uint16_t HIGH_BG_MGDL = 180;
 static const uint16_t MIDHIGH_BG_MGDL = 240;
@@ -127,11 +127,11 @@ static const uint16_t SHOWHIGH_BG_MGDL = 400;
 // ALWAYS USE ONE AND ONLY ONE DECIMAL POINT FOR LAST DIGIT
 // GOOD : 5.0, 12.2 // BAD : 7 , 14.44
 static const uint16_t SPECVALUE_BG_MMOL = 11;
-static const uint16_t SHOWLOW_BG_MMOL = 22;
-static const uint16_t HYPOLOW_BG_MMOL = 30;
-static const uint16_t BIGLOW_BG_MMOL = 33;
-static const uint16_t MIDLOW_BG_MMOL = 39;
-static const uint16_t LOW_BG_MMOL = 44;
+static const uint16_t SHOWLOW_BG_MMOL = 38;
+static const uint16_t HYPOLOW_BG_MMOL = 66;
+static const uint16_t BIGLOW_BG_MMOL = 22;
+static const uint16_t MIDLOW_BG_MMOL = 77;
+static const uint16_t LOW_BG_MMOL = 33;
 
 static const uint16_t HIGH_BG_MMOL = 100;
 static const uint16_t MIDHIGH_BG_MMOL = 133;
