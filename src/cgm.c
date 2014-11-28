@@ -127,10 +127,10 @@ static const uint16_t SHOWHIGH_BG_MGDL = 400;
 // ALWAYS USE ONE AND ONLY ONE DECIMAL POINT FOR LAST DIGIT
 // GOOD : 5.0, 12.2 // BAD : 7 , 14.44
 static const uint16_t SPECVALUE_BG_MMOL = 11;
-static const uint16_t SHOWLOW_BG_MMOL = 38;
-static const uint16_t HYPOLOW_BG_MMOL = 66;
+static const uint16_t SHOWLOW_BG_MMOL = 13;
+static const uint16_t HYPOLOW_BG_MMOL = 16;
 static const uint16_t BIGLOW_BG_MMOL = 22;
-static const uint16_t MIDLOW_BG_MMOL = 77;
+static const uint16_t MIDLOW_BG_MMOL = 27;
 static const uint16_t LOW_BG_MMOL = 33;
 
 static const uint16_t HIGH_BG_MMOL = 100;
