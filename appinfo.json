@@ -17,12 +17,6 @@
     "resources": {
         "media": [
             {
-                "file": "images/menuicon.png",
-                "menuIcon": true,
-                "name": "IMAGE_MENU_ICON",
-                "type": "png"
-            },
-            {
                 "file": "images/up.png",
                 "name": "IMAGE_UP",
                 "type": "png"
@@ -65,6 +59,12 @@
             {
                 "file": "images/logo.png",
                 "name": "IMAGE_LOGO",
+                "type": "png"
+            },
+            {
+                "file": "images/menuicon.png",
+                "menuIcon": true,
+                "name": "IMAGE_MENU_ICON",
                 "type": "png"
             },
             {
