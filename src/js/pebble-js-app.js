@@ -21,7 +21,8 @@ function fetchCgmData() {
           tapp: 0,
           dlta: "NOEP",
           ubat: " ",
-          name: " "
+          name: " ",
+          vals: " "
         };
         
         console.log("NO ENDPOINT JS message", JSON.stringify(message));
@@ -60,6 +61,7 @@ function fetchCgmData() {
 
                     // get direction arrow and BG
                     var currentDirection = response[0].direction,
+                    values= " ",
                     currentIcon = "10",
                     currentBG = response[0].sgv,
                     //currentBG = "100",
@@ -117,6 +119,29 @@ function fetchCgmData() {
                     // assign bg delta string
                     formatBGDelta = ((currentBGDelta > 0 ? '+' : '') + currentBGDelta);
                   
+                    if (opts.radio == "mgdl_form") {
+                      values = "0";  //mgdl selected
+                    } else {
+                      values = "1"; //mmol selected                      
+                    }
+                    values += "," + opts.lowbg;  //Low BG Level
+                    values += "," + opts.highbg; //High BG Level                      
+                    values += "," + opts.lowsnooze;  //LowSnooze minutes 
+                    values += "," + opts.highsnooze; //HighSnooze minutes
+                    values += "," + opts.lowvibe;  //Low Vibration 
+                    values += "," + opts.highvibe; //High Vibration
+                    values += "," + opts.vibepattern; //Vibration Pattern
+                    if (opts.timeformat == "12"){
+                      values += ",0";  //Time Format 12 Hour  
+                    } else {
+                      values += ",1";  //Time Format 24 Hour  
+                    }
+                  
+                    
+                    
+                    //console.log("Current Value: " + values);
+                      
+                  
                     // debug logs; uncomment when need to debug something
  
                     //console.log("current Direction: " + currentDirection);
@@ -136,7 +161,8 @@ function fetchCgmData() {
                       tapp: formatAppTime,
                       dlta: formatBGDelta,
                       ubat: currentBattery,
-                      name: NameofT1DPerson
+                      name: NameofT1DPerson,
+                      vals: values
                     };
                     
                     // send message data to log and to watch
@@ -155,7 +181,8 @@ function fetchCgmData() {
                       tapp: 0,
                       dlta: "ERR",
                       ubat: " ",
-                      name: " "
+                      name: " ",
+                      vals: " "
                     };
                   
                     console.log("DATA OFFLINE JS message", JSON.stringify(message));
@@ -319,7 +346,7 @@ Pebble.addEventListener("appmessage",
 
 Pebble.addEventListener("showConfiguration", function(e) {
                         console.log("Showing Configuration", JSON.stringify(e));
-                        Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-4.2.0.html');
+                        Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-6.html');
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {

@@ -6,13 +6,14 @@
         "name": 6,
         "tapp": 3,
         "tcgm": 2,
-        "ubat": 5
+        "ubat": 5,
+        "vals": 7
     },
     "capabilities": [
         "configurable"
     ],
     "companyName": "Nightscout Contributors",
-    "longName": "NEW NIGHTSCOUT",
+    "longName": "NIGHTSCOUT",
     "projectType": "native",
     "resources": {
         "media": [
@@ -179,10 +180,10 @@
             }
         ]
     },
-    "shortName": "NEW Nightscout",
+    "shortName": "Nightscout",
     "uuid": "4bfa0b46-b9fa-4e1a-b2ba-a2ba7168f897",
-    "versionCode": 11,
-    "versionLabel": "5.2",
+    "versionCode": 12,
+    "versionLabel": "6.0",
     "watchapp": {
         "watchface": true
     }
