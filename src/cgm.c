@@ -1,4 +1,6 @@
 #include "pebble.h"
+#include "stddef.h"
+#include "string.h"
 
 // global window variables
 // ANYTHING THAT IS CALLED BY PEBBLE API HAS TO BE NOT STATIC
@@ -32,29 +34,38 @@ static char date_app_text[] = "Wed 13 ";
 
 // variables for AppSync
 AppSync sync_cgm;
-// CGM message is 57 bytes
+// CGM message is 84 bytes
 // Pebble needs additional 62 Bytes?!? Pad with additional 20 bytes
-static uint8_t sync_buffer_cgm[140];
+static uint8_t sync_buffer_cgm[166];
 
 // variables for timers and time
 AppTimer *timer_cgm = NULL;
 AppTimer *BT_timer = NULL;
 time_t time_now = 0;
+int timeformat = 0;
 
 // global variable for bluetooth connection
 bool bluetooth_connected_cgm = true;
 
 // global variables for sync tuple functions
-// buffers have to be static and hardcoded
-static char current_icon[2];
-static char last_bg[6];
-static int current_bg = 0;
-static bool currentBG_isMMOL = false;
-static char last_battlevel[4];
-static uint32_t current_cgm_time = 0;
-static uint32_t current_app_time = 0;
-static char current_bg_delta[10];
-static int converted_bgDelta = 0;
+char current_icon[2] = {0};
+char last_bg[6] = {0};
+char last_battlevel[4] = {0};
+char battlevel_percent[6] = {0};
+uint32_t current_cgm_time = 0;
+char formatted_cgm_timeago[10] = {0};
+char cgm_label_buffer[6] = {0};	
+uint32_t current_app_time = 0;
+char formatted_app_timeago[10] = {0};
+char app_label_buffer[6] = {0};
+char current_bg_delta[10] = {0};
+char delta_label_buffer[14] = {0};
+char formatted_bg_delta[14] = {0};
+
+int current_bg = 0;
+bool currentBG_isMMOL = false;
+int converted_bgDelta = 0;
+char current_values[25] = {0};
 
 // global BG snooze timer
 static uint8_t lastAlertTime = 0;
@@ -114,11 +125,11 @@ static const uint16_t SHOWLOW_BG_MGDL = 40;
 static const uint16_t HYPOLOW_BG_MGDL = 55;
 static const uint16_t BIGLOW_BG_MGDL = 60;
 static const uint16_t MIDLOW_BG_MGDL = 70;
-static const uint16_t LOW_BG_MGDL = 80;
+uint16_t LOW_BG_MGDL = 80;
 
-static const uint16_t HIGH_BG_MGDL = 180;
-static const uint16_t MIDHIGH_BG_MGDL = 240;
-static const uint16_t BIGHIGH_BG_MGDL = 300;
+uint16_t HIGH_BG_MGDL = 180;
+uint16_t MIDHIGH_BG_MGDL = 240;
+uint16_t BIGHIGH_BG_MGDL = 300;
 static const uint16_t SHOWHIGH_BG_MGDL = 400;
 
 // BG Ranges, MMOL
@@ -127,15 +138,15 @@ static const uint16_t SHOWHIGH_BG_MGDL = 400;
 // ALWAYS USE ONE AND ONLY ONE DECIMAL POINT FOR LAST DIGIT
 // GOOD : 5.0, 12.2 // BAD : 7 , 14.44
 static const uint16_t SPECVALUE_BG_MMOL = 11;
-static const uint16_t SHOWLOW_BG_MMOL = 22;
+static const uint16_t SHOWLOW_BG_MMOL = 23;
 static const uint16_t HYPOLOW_BG_MMOL = 30;
 static const uint16_t BIGLOW_BG_MMOL = 33;
 static const uint16_t MIDLOW_BG_MMOL = 39;
-static const uint16_t LOW_BG_MMOL = 44;
+uint16_t LOW_BG_MMOL = 44;
 
-static const uint16_t HIGH_BG_MMOL = 100;
-static const uint16_t MIDHIGH_BG_MMOL = 133;
-static const uint16_t BIGHIGH_BG_MMOL = 166;
+uint16_t HIGH_BG_MMOL = 100;
+uint16_t MIDHIGH_BG_MMOL = 133;
+uint16_t BIGHIGH_BG_MMOL = 166;
 static const uint16_t SHOWHIGH_BG_MMOL = 222;
 
 // BG Snooze Times, in Minutes; controls when vibrate again
@@ -144,8 +155,8 @@ static const uint8_t SPECVALUE_SNZ_MIN = 30;
 static const uint8_t HYPOLOW_SNZ_MIN = 5;
 static const uint8_t BIGLOW_SNZ_MIN = 5;
 static const uint8_t MIDLOW_SNZ_MIN = 10;
-static const uint8_t LOW_SNZ_MIN = 15;
-static const uint8_t HIGH_SNZ_MIN = 30;
+uint8_t LOW_SNZ_MIN = 15;
+uint8_t HIGH_SNZ_MIN = 30;
 static const uint8_t MIDHIGH_SNZ_MIN = 30;
 static const uint8_t BIGHIGH_SNZ_MIN = 30;
   
@@ -154,8 +165,8 @@ static const uint8_t BIGHIGH_SNZ_MIN = 30;
 static const uint8_t SPECVALUE_VIBE = 2;
 static const uint8_t HYPOLOWBG_VIBE = 3;
 static const uint8_t BIGLOWBG_VIBE = 3;
-static const uint8_t LOWBG_VIBE = 3;
-static const uint8_t HIGHBG_VIBE = 2;
+uint8_t LOWBG_VIBE = 3;
+uint8_t HIGHBG_VIBE = 2;
 static const uint8_t BIGHIGHBG_VIBE = 2;
 static const uint8_t DOUBLEDOWN_VIBE = 3;
 static const uint8_t APPSYNC_ERR_VIBE = 1;
@@ -180,9 +191,9 @@ static const bool TurnOff_CHECKPHONE_Msg = false;
 
 // Control Vibrations
 // IF YOU WANT NO VIBRATIONS, SET TO true
-static const bool TurnOffAllVibrations = false;
+bool TurnOffAllVibrations = false;
 // IF YOU WANT LESS INTENSE VIBRATIONS, SET TO true
-static const bool TurnOffStrongVibrations = false;
+bool TurnOffStrongVibrations = false;
 
 // Bluetooth Timer Wait Time, in Seconds
 // RANGE 0-240
@@ -204,11 +215,12 @@ enum CgmKey {
 	CGM_TAPP_KEY = 0x3,		// TUPLE_INT, 4 BYTES (APP / PHONE TIME)
 	CGM_DLTA_KEY = 0x4,		// TUPLE_CSTRING, MAX 5 BYTES (BG DELTA, -100 or -10.0)
 	CGM_UBAT_KEY = 0x5,		// TUPLE_CSTRING, MAX 3 BYTES (UPLOADER BATTERY, 100)
-	CGM_NAME_KEY = 0x6		// TUPLE_CSTRING, MAX 9 BYTES (Christine)
+	CGM_NAME_KEY = 0x6,		// TUPLE_CSTRING, MAX 9 BYTES (Christine)
+  CGM_VALS_KEY = 0x7    // TUPLE_CSTRING, MAX 25 BYTES (0,000,000,000,000,0,0,0,0)
 }; 
-// TOTAL MESSAGE DATA 4x3+2+5+3+9 = 31 BYTES
-// TOTAL KEY HEADER DATA (STRINGS) 4x6+2 = 26 BYTES
-// TOTAL MESSAGE 57 BYTES
+// TOTAL MESSAGE DATA 4x3+2+5+3+9+25 = 56 BYTES
+// TOTAL KEY HEADER DATA (STRINGS) 4x7+2 = 28 BYTES
+// TOTAL MESSAGE 84 BYTES
 
 // ARRAY OF SPECIAL VALUE ICONS
 static const uint8_t SPECIAL_VALUE_ICONS[] = {
@@ -279,6 +291,56 @@ static char *translate_dict_error(DictionaryResult result) {
   }
 }
 
+char *strtok(s, delim)
+	register char *s;
+	register const char *delim;
+{
+	register char *spanp;
+	register int c, sc;
+	char *tok;
+	static char *last;
+
+
+	if (s == NULL && (s = last) == NULL)
+		return (NULL);
+
+	/*
+	 * Skip (span) leading delimiters (s += strspn(s, delim), sort of).
+	 */
+cont:
+	c = *s++;
+	for (spanp = (char *)delim; (sc = *spanp++) != 0;) {
+		if (c == sc)
+			goto cont;
+	}
+
+	if (c == 0) {		/* no non-delimiter characters */
+		last = NULL;
+		return (NULL);
+	}
+	tok = s - 1;
+
+	/*
+	 * Scan token (scan for delimiters: s += strcspn(s, delim), sort of).
+	 * Note that delim must have one NUL; we stop if we see that, too.
+	 */
+	for (;;) {
+		c = *s++;
+		spanp = (char *)delim;
+		do {
+			if ((sc = *spanp++) == c) {
+				if (c == 0)
+					s = NULL;
+				else
+					s[-1] = 0;
+				last = s;
+				return (tok);
+			}
+		} while (sc != 0);
+	}
+	/* NOTREACHED */
+}
+
 int myAtoi(char *str) {
 
 	// VARIABLES
@@ -332,6 +394,89 @@ int myBGAtoi(char *str) {
  //APP_LOG(APP_LOG_LEVEL_DEBUG, "myBGAtoi, FINAL RESULT OUT: %i", res );
     return res;
 } // end myBGAtoi
+
+static void load_values(){
+  //APP_LOG(APP_LOG_LEVEL_DEBUG,"Loaded Values: %s", current_values);
+
+  int num_a_items = 0;
+  char *o;
+  int mgormm;
+  int vibes;
+  if (current_values == NULL) {
+    return;
+  } else {
+    o = strtok(current_values,",");
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "mg or mm: %s", o);      
+    mgormm = myAtoi(o);
+
+    while(o != NULL) {
+      num_a_items++;
+      switch (num_a_items) {
+        case 2:
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "lowbg: %s", o);
+          if (mgormm == 0){
+            LOW_BG_MGDL = myAtoi(o);
+          } else {
+            LOW_BG_MMOL = myAtoi(o);
+          }
+          break;
+        case 3:
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "highbg: %s", o);
+          if (mgormm == 0){
+            HIGH_BG_MGDL = myAtoi(o);
+            if (HIGH_BG_MGDL > 239) {
+              MIDHIGH_BG_MGDL = 300;
+              BIGHIGH_BG_MGDL = 350;
+            }
+          } else {
+            HIGH_BG_MMOL = myAtoi(o);
+              if (HIGH_BG_MMOL > 132) {
+               MIDHIGH_BG_MMOL = 166;
+               BIGHIGH_BG_MMOL =  200;
+              }
+          }
+          break;
+        case 4:
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "lowsnooze: %s", o);
+          LOW_SNZ_MIN = myAtoi(o);
+          break;
+        case 5:
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "highsnooze: %s", o);      
+          HIGH_SNZ_MIN = myAtoi(o);
+          break;
+        case 6:
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "lowvibe: %s", o);
+          LOWBG_VIBE = myAtoi(o);
+          break;
+        case 7:
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "highvibe: %s", o);
+          HIGHBG_VIBE = myAtoi(o);
+          break;
+        case 8:
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "vibepattern: %s", o);
+          vibes = myAtoi(o);
+          if (vibes == 0){
+            TurnOffAllVibrations = true;
+            TurnOffStrongVibrations = true;
+          } else if (vibes == 1){
+            TurnOffAllVibrations = false;
+            TurnOffStrongVibrations = true; 
+          } else if (vibes == 2){
+            TurnOffAllVibrations = false;
+            TurnOffStrongVibrations = false;
+          }
+          break;
+        case 9:
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "timeformat: %s", o);
+          timeformat = myAtoi(o);
+          break;
+      }
+      o = strtok(NULL,",");
+    }
+  }
+   
+  
+} //End load_values
 
 static void destroy_null_GBitmap(GBitmap **GBmp_image) {
 	//APP_LOG(APP_LOG_LEVEL_INFO, "DESTROY NULL GBITMAP: ENTER CODE");
@@ -586,7 +731,13 @@ static void draw_date_from_app() {
   
   // format current date from app
   if (strcmp(time_watch_text, "00:00") == 0) {
-    draw_return = strftime(time_watch_text, TIME_TEXTBUFF_SIZE, "%l:%M", current_d_app);
+      //APP_LOG(APP_LOG_LEVEL_INFO, "TimeFormat: %d", timeformat);
+      if (timeformat == 0){
+        draw_return = strftime(time_watch_text, TIME_TEXTBUFF_SIZE, "%l:%M", current_d_app);
+      } else {
+        draw_return = strftime(time_watch_text, TIME_TEXTBUFF_SIZE, "%H:%M", current_d_app);
+      }
+  
 	if (draw_return != 0) {
       text_layer_set_text(time_watch_layer, time_watch_text);
 	}
@@ -1151,7 +1302,7 @@ static void load_bg() {
     
 	  // check for SPECIAL VALUE
       if ( ( ((current_bg > 0) && (current_bg < bg_ptr[SPECVALUE_BG_INDX]))
-          && ((lastAlertTime == 0) || (lastAlertTime == SPECVALUE_SNZ_MIN)) )
+          && ((lastAlertTime == 0) || (lastAlertTime > SPECVALUE_SNZ_MIN)) )
 		    || ( ((current_bg > 0) && (current_bg <= bg_ptr[SPECVALUE_BG_INDX])) && (!specvalue_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE BG ALERT");
@@ -1169,7 +1320,7 @@ static void load_bg() {
         }
       
 	    // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == SPECVALUE_SNZ_MIN) { 
+        if (lastAlertTime > SPECVALUE_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
           hypolow_overwrite = false;
@@ -1186,7 +1337,7 @@ static void load_bg() {
       
 	  // check for HYPO LOW BG and not SPECIAL VALUE
       else if ( ( ((current_bg > bg_ptr[SPECVALUE_BG_INDX]) && (current_bg <= bg_ptr[HYPOLOW_BG_INDX])) 
-             && ((lastAlertTime == 0) || (lastAlertTime == HYPOLOW_SNZ_MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime > HYPOLOW_SNZ_MIN)) ) 
            || ( ((current_bg > bg_ptr[SPECVALUE_BG_INDX]) && (current_bg <= bg_ptr[HYPOLOW_BG_INDX])) && (!hypolow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, HYPO LOW BG ALERT");
@@ -1202,7 +1353,7 @@ static void load_bg() {
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == HYPOLOW_SNZ_MIN) { 
+        if (lastAlertTime > HYPOLOW_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
           hypolow_overwrite = false;
@@ -1217,7 +1368,7 @@ static void load_bg() {
 	  
       // check for BIG LOW BG
       else if ( ( ((current_bg > bg_ptr[HYPOLOW_BG_INDX]) && (current_bg <= bg_ptr[BIGLOW_BG_INDX])) 
-             && ((lastAlertTime == 0) || (lastAlertTime == BIGLOW_SNZ_MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime > BIGLOW_SNZ_MIN)) ) 
            || ( ((current_bg > bg_ptr[HYPOLOW_BG_INDX]) && (current_bg <= bg_ptr[BIGLOW_BG_INDX])) && (!biglow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BIG LOW BG ALERT");
@@ -1233,7 +1384,7 @@ static void load_bg() {
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == BIGLOW_SNZ_MIN) { 
+        if (lastAlertTime > BIGLOW_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
           hypolow_overwrite = false;
@@ -1248,7 +1399,7 @@ static void load_bg() {
 	 
       // check for MID LOW BG
       else if ( ( ((current_bg > bg_ptr[BIGLOW_BG_INDX]) && (current_bg <= bg_ptr[MIDLOW_BG_INDX])) 
-             && ((lastAlertTime == 0) || (lastAlertTime == MIDLOW_SNZ_MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime > MIDLOW_SNZ_MIN)) ) 
            || ( ((current_bg > bg_ptr[BIGLOW_BG_INDX]) && (current_bg <= bg_ptr[MIDLOW_BG_INDX])) && (!midlow_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, MID LOW BG ALERT");
@@ -1264,7 +1415,7 @@ static void load_bg() {
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == MIDLOW_SNZ_MIN) { 
+        if (lastAlertTime > MIDLOW_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
           hypolow_overwrite = false;
@@ -1279,11 +1430,12 @@ static void load_bg() {
 
       // check for LOW BG
       else if ( ( ((current_bg > bg_ptr[MIDLOW_BG_INDX]) && (current_bg <= bg_ptr[LOW_BG_INDX])) 
-               && ((lastAlertTime == 0) || (lastAlertTime == LOW_SNZ_MIN)) )
+               && ((lastAlertTime == 0) || (lastAlertTime > LOW_SNZ_MIN)) )
              || ( ((current_bg > bg_ptr[MIDLOW_BG_INDX]) && (current_bg <= bg_ptr[LOW_BG_INDX])) && (!low_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, LOW BG ALERT");
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime LOW SNOOZE VALUE IN: %i", lastAlertTime);
+		//APP_LOG(APP_LOG_LEVEL_DEBUG, "low_snz_min LOW SNOOZE VALUE IN: %i", LOW_SNZ_MIN);
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "low_overwrite IN: %i", low_overwrite);
       
         // send alert and handle a bouncing connection
@@ -1295,7 +1447,7 @@ static void load_bg() {
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == LOW_SNZ_MIN) {
+        if (lastAlertTime > LOW_SNZ_MIN) {
           lastAlertTime = 0; 
           specvalue_overwrite = false;
           hypolow_overwrite = false;
@@ -1305,16 +1457,18 @@ static void load_bg() {
         }
       
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime LOW SNOOZE VALUE OUT: %i", lastAlertTime);
+		//APP_LOG(APP_LOG_LEVEL_DEBUG, "low_snz_min LOW SNOOZE VALUE OUT: %i", LOW_SNZ_MIN);
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "low_overwrite OUT: %i", low_overwrite);
       }  // else if LOW BG
       
       // check for HIGH BG
       else if ( ( ((current_bg >= bg_ptr[HIGH_BG_INDX]) && (current_bg < bg_ptr[MIDHIGH_BG_INDX])) 
-             && ((lastAlertTime == 0) || (lastAlertTime == HIGH_SNZ_MIN)) ) 
+             && ((lastAlertTime == 0) || (lastAlertTime > HIGH_SNZ_MIN)) ) 
            || ( ((current_bg >= bg_ptr[HIGH_BG_INDX]) && (current_bg < bg_ptr[MIDHIGH_BG_INDX])) && (!high_overwrite) ) ) {
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, HIGH BG ALERT");   
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime HIGH SNOOZE VALUE IN: %i", lastAlertTime);
+		//APP_LOG(APP_LOG_LEVEL_DEBUG, "high_snz_min HIGH SNOOZE VALUE IN: %i", HIGH_SNZ_MIN);
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "high_overwrite IN: %i", high_overwrite);
       
         // send alert and handle a bouncing connection
@@ -1326,7 +1480,7 @@ static void load_bg() {
         }
        
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == HIGH_SNZ_MIN) {
+        if (lastAlertTime > HIGH_SNZ_MIN) {
           lastAlertTime = 0; 
           specvalue_overwrite = false;
           high_overwrite = false;
@@ -1335,11 +1489,13 @@ static void load_bg() {
         } 
        
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime HIGH SNOOZE VALUE OUT: %i", lastAlertTime);
+		//APP_LOG(APP_LOG_LEVEL_DEBUG, "high_snz_min HIGH SNOOZE VALUE OUT: %i", HIGH_SNZ_MIN);
+		//APP_LOG(APP_LOG_LEVEL_DEBUG, "high_overwrite OUT: %i", high_overwrite);
       } // else if HIGH BG
     
       // check for MID HIGH BG
       else if ( ( ((current_bg >= bg_ptr[MIDHIGH_BG_INDX]) && (current_bg < bg_ptr[BIGHIGH_BG_INDX])) 
-               && ((lastAlertTime == 0) || (lastAlertTime == MIDHIGH_SNZ_MIN)) )
+               && ((lastAlertTime == 0) || (lastAlertTime > MIDHIGH_SNZ_MIN)) )
              || ( ((current_bg >= bg_ptr[MIDHIGH_BG_INDX]) && (current_bg < bg_ptr[BIGHIGH_BG_INDX])) && (!midhigh_overwrite) ) ) {  
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, MID HIGH BG ALERT");
@@ -1355,7 +1511,7 @@ static void load_bg() {
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == MIDHIGH_SNZ_MIN) { 
+        if (lastAlertTime > MIDHIGH_SNZ_MIN) { 
           lastAlertTime = 0; 
           specvalue_overwrite = false;
           high_overwrite = false;
@@ -1369,7 +1525,7 @@ static void load_bg() {
   
       // check for BIG HIGH BG
       else if ( ( (current_bg >= bg_ptr[BIGHIGH_BG_INDX]) 
-               && ((lastAlertTime == 0) || (lastAlertTime == BIGHIGH_SNZ_MIN)) )
+               && ((lastAlertTime == 0) || (lastAlertTime > BIGHIGH_SNZ_MIN)) )
                || ((current_bg >= bg_ptr[BIGHIGH_BG_INDX]) && (!bighigh_overwrite)) ) {   
       
         //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BIG HIGH BG ALERT");
@@ -1385,7 +1541,7 @@ static void load_bg() {
         }
       
         // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime == BIGHIGH_SNZ_MIN) { 
+        if (lastAlertTime > BIGHIGH_SNZ_MIN) { 
           lastAlertTime = 0;
           specvalue_overwrite = false;
           high_overwrite = false;
@@ -1416,11 +1572,8 @@ static void load_cgmtime() {
     //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME FUNCTION START");
 	
 	// VARIABLES
-	// NOTE: buffers have to be static and hardcoded
 	uint32_t current_cgm_timeago = 0;
 	int cgm_timeago_diff = 0;
-	static char formatted_cgm_timeago[10];
-	static char cgm_label_buffer[6];	
     
 	// CODE START
 	
@@ -1506,11 +1659,8 @@ static void load_apptime(){
     //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, READ APP TIME FUNCTION START");
 	
 	// VARIABLES
-	// NOTE: buffers have to be static and hardcoded
 	uint32_t current_app_timeago = 0;
 	int app_timeago_diff = 0;
-	static char formatted_app_timeago[10];
-	static char app_label_buffer[6];
 	  
 	// CODE START
 	
@@ -1603,11 +1753,6 @@ static void load_bg_delta() {
 	const uint8_t BGDELTA_LABEL_SIZE = 14;
 	const uint8_t BGDELTA_FORMATTED_SIZE = 14;
 	
-	// VARIABLES
-	// NOTE: buffers have to be static and hardcoded
-	static char delta_label_buffer[14];
-	static char formatted_bg_delta[14];
-	
 	// CODE START
 	
 	// check bluetooth connection
@@ -1659,7 +1804,7 @@ static void load_bg_delta() {
   	// check if LOADING.., if true set message
 	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
-      strncpy(formatted_bg_delta, "LOADING...", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "LOADING 6.0", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
@@ -1767,9 +1912,7 @@ static void load_battlevel() {
 	const uint8_t BATTNONE_ICON_INDX = 11;
 	
 	// VARIABLES
-	// NOTE: buffers have to be static and hardcoded
 	int current_battlevel = 0;
-	static char battlevel_percent[6];
 	
 	// CODE START
 	
@@ -1891,6 +2034,7 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
 	const uint8_t BG_MSGSTR_SIZE = 6;
 	const uint8_t BGDELTA_MSGSTR_SIZE = 6;
 	const uint8_t BATTLEVEL_MSGSTR_SIZE = 4;
+	const uint8_t VALUE_MSGSTR_SIZE = 25;
 
 	// CODE START
 	
@@ -1899,30 +2043,35 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
 	case CGM_ICON_KEY:;
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: ICON ARROW");
       strncpy(current_icon, new_tuple->value->cstring, ICON_MSGSTR_SIZE);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, ICON VALUE: %s ", current_icon);
 	  load_icon();
       break; // break for CGM_ICON_KEY
 
 	case CGM_BG_KEY:;
 	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BG CURRENT");
       strncpy(last_bg, new_tuple->value->cstring, BG_MSGSTR_SIZE);
+	  //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, BG VALUE: %s ", last_bg);
       load_bg();
       break; // break for CGM_BG_KEY
 
 	case CGM_TCGM_KEY:;
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: READ CGM TIME");
 	  current_cgm_time = new_tuple->value->uint32;
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CGM TIME VALUE: %i ", current_cgm_time);
       load_cgmtime();
       break; // break for CGM_TCGM_KEY
 
 	case CGM_TAPP_KEY:;
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: READ APP TIME NOW");
 	  current_app_time = new_tuple->value->uint32;
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, APP TIME VALUE: %i ", current_app_time);
       load_apptime();    
       break; // break for CGM_TAPP_KEY
 
 	case CGM_DLTA_KEY:;
    	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BG DELTA");
 	  strncpy(current_bg_delta, new_tuple->value->cstring, BGDELTA_MSGSTR_SIZE);
+   	  //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, BG DELTA VALUE: %s ", current_bg_delta);
 	  load_bg_delta();
 	  break; // break for CGM_DLTA_KEY
 	
@@ -1930,6 +2079,7 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
    	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: UPLOADER BATTERY LEVEL");
    	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL IN, COPY LAST BATTLEVEL");
       strncpy(last_battlevel, new_tuple->value->cstring, BATTLEVEL_MSGSTR_SIZE);
+   	  //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, BATTERY LEVEL VALUE: %s ", last_battlevel);
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL, CALL LOAD BATTLEVEL");
       load_battlevel();
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL OUT");
@@ -1939,6 +2089,13 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: T1D NAME");
       text_layer_set_text(t1dname_layer, new_tuple->value->cstring);
       break; // break for CGM_NAME_KEY
+    
+  case CGM_VALS_KEY:
+      //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: VALUES");
+      strncpy(current_values, new_tuple->value->cstring, VALUE_MSGSTR_SIZE);
+      load_values();
+      break; // break for CGM_VALS_KEY
+      
 	  
   }  // end switch(key)
 
@@ -2003,7 +2160,11 @@ void handle_minute_tick_cgm(struct tm* tick_time_cgm, TimeUnits units_changed_cg
   
   if (units_changed_cgm & MINUTE_UNIT) {
     //APP_LOG(APP_LOG_LEVEL_INFO, "TICK TIME MINUTE CODE");
-    tick_return_cgm = strftime(time_watch_text, TIME_TEXTBUFF_SIZE, "%l:%M", tick_time_cgm);
+    if (timeformat == 0){
+      tick_return_cgm = strftime(time_watch_text, TIME_TEXTBUFF_SIZE, "%l:%M", tick_time_cgm);
+    } else {
+      tick_return_cgm = strftime(time_watch_text, TIME_TEXTBUFF_SIZE, "%H:%M", tick_time_cgm);
+    }
 	if (tick_return_cgm != 0) {
       text_layer_set_text(time_watch_layer, time_watch_text);
 	}
@@ -2130,13 +2291,14 @@ void window_load_cgm(Window *window_cgm) {
   // put " " (space) in bg field so logo continues to show
   // " " (space) also shows these are init values, not bad or null values
   Tuplet initial_values_cgm[] = {
-    TupletCString(CGM_ICON_KEY, " "),
+  TupletCString(CGM_ICON_KEY, " "),
 	TupletCString(CGM_BG_KEY, " "),
 	TupletInteger(CGM_TCGM_KEY, 0),
 	TupletInteger(CGM_TAPP_KEY, 0),
 	TupletCString(CGM_DLTA_KEY, "LOAD"),
 	TupletCString(CGM_UBAT_KEY, " "),
-	TupletCString(CGM_NAME_KEY, " ")
+	TupletCString(CGM_NAME_KEY, " "),
+  TupletCString(CGM_VALS_KEY, " ")
   };
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, ABOUT TO CALL APP SYNC INIT");
@@ -2271,4 +2433,3 @@ int main(void) {
   deinit_cgm();
   
 } // end main
-
