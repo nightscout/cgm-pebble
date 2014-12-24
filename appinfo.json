@@ -58,6 +58,16 @@
                 "type": "png"
             },
             {
+                "file": "images/club100.png",
+                "name": "IMAGE_CLUB100",
+                "type": "png"
+            },
+            {
+                "file": "images/club55.png",
+                "name": "IMAGE_CLUB55",
+                "type": "png"
+            },
+            {
                 "file": "images/logo.png",
                 "name": "IMAGE_LOGO",
                 "type": "png"
@@ -183,7 +193,7 @@
     "shortName": "Nightscout",
     "uuid": "4bfa0b46-b9fa-4e1a-b2ba-a2ba7168f897",
     "versionCode": 12,
-    "versionLabel": "6.0",
+    "versionLabel": "6.1",
     "watchapp": {
         "watchface": true
     }
