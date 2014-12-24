@@ -7,6 +7,7 @@
 
 Window *window_cgm = NULL;
 
+TextLayer *tophalf_layer = NULL;
 TextLayer *bg_layer = NULL;
 TextLayer *cgmtime_layer = NULL;
 TextLayer *message_layer = NULL;    // BG DELTA & MESSAGE LAYER
@@ -20,14 +21,18 @@ BitmapLayer *icon_layer = NULL;
 BitmapLayer *cgmicon_layer = NULL;
 BitmapLayer *appicon_layer = NULL;
 BitmapLayer *batticon_layer = NULL;
+BitmapLayer *perfectbg_layer = NULL;
 
 GBitmap *icon_bitmap = NULL;
 GBitmap *appicon_bitmap = NULL;
 GBitmap *cgmicon_bitmap = NULL;
 GBitmap *specialvalue_bitmap = NULL;
 GBitmap *batticon_bitmap = NULL;
+GBitmap *perfectbg_bitmap = NULL;
 
 InverterLayer *inv_battlevel_layer = NULL;
+
+PropertyAnimation *perfectbg_animation = NULL;
 
 static char time_watch_text[] = "00:00";
 static char date_app_text[] = "Wed 13 ";
@@ -41,6 +46,7 @@ static uint8_t sync_buffer_cgm[166];
 // variables for timers and time
 AppTimer *timer_cgm = NULL;
 AppTimer *BT_timer = NULL;
+AppTimer *timer_animatebg = NULL;
 time_t time_now = 0;
 int timeformat = 0;
 
@@ -204,9 +210,10 @@ static const uint8_t BT_ALERT_WAIT_SECS = 45;
 
 // ** END OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
 
-// Message Timer Wait Times, in Seconds
+// Message Timer & Animate Wait Times, in Seconds
 static const uint8_t WATCH_MSGSEND_SECS = 60;
 static const uint8_t LOADING_MSGSEND_SECS = 4;
+static const uint8_t PERFECTBG_ANIMATE_SECS = 10;
 
 enum CgmKey {
 	CGM_ICON_KEY = 0x0,		// TUPLE_CSTRING, MAX 2 BYTES (10)
@@ -216,7 +223,7 @@ enum CgmKey {
 	CGM_DLTA_KEY = 0x4,		// TUPLE_CSTRING, MAX 5 BYTES (BG DELTA, -100 or -10.0)
 	CGM_UBAT_KEY = 0x5,		// TUPLE_CSTRING, MAX 3 BYTES (UPLOADER BATTERY, 100)
 	CGM_NAME_KEY = 0x6,		// TUPLE_CSTRING, MAX 9 BYTES (Christine)
-  CGM_VALS_KEY = 0x7    // TUPLE_CSTRING, MAX 25 BYTES (0,000,000,000,000,0,0,0,0)
+	CGM_VALS_KEY = 0x7		// TUPLE_CSTRING, MAX 25 BYTES (0,000,000,000,000,0,0,0,0)
 }; 
 // TOTAL MESSAGE DATA 4x3+2+5+3+9+25 = 56 BYTES
 // TOTAL KEY HEADER DATA (STRINGS) 4x7+2 = 28 BYTES
@@ -259,6 +266,18 @@ static const uint8_t PHONEON_ICON_INDX = 1;
 static const uint8_t PHONEOFF_ICON_INDX = 2;
 static const uint8_t RCVRON_ICON_INDX = 3;
 static const uint8_t RCVROFF_ICON_INDX = 4;
+
+// ARRAY OF ICONS FOR PERFECT BG
+static const uint8_t PERFECTBG_ICONS[] = {
+	RESOURCE_ID_IMAGE_NONE,      //0
+	RESOURCE_ID_IMAGE_CLUB100,   //1
+	RESOURCE_ID_IMAGE_CLUB55     //2
+};
+
+// INDEX FOR ARRAY OF PERFECT BG ICONS
+static const uint8_t NONE_PERFECTBG_ICON_INDX = 0;
+static const uint8_t CLUB100_ICON_INDX = 1;
+static const uint8_t CLUB55_ICON_INDX = 2;
 
 static char *translate_app_error(AppMessageResult result) {
   switch (result) {
@@ -1072,6 +1091,89 @@ static void load_icon() {
 	
 } // end load_icon
 
+static void load_bg_delta();
+
+// ANIMATION CODE
+
+void perfectbg_animation_started(Animation *animation, void *data) {
+
+	//APP_LOG(APP_LOG_LEVEL_INFO, "PERFECT BG ANIMATE, ANIMATION STARTED ROUTINE"); 
+	// clear out BG and icon
+	text_layer_set_text(bg_layer, " ");
+	create_update_bitmap(&icon_bitmap,icon_layer,PERFECTBG_ICONS[NONE_PERFECTBG_ICON_INDX]);
+	text_layer_set_text(message_layer, "GREAT JOB!");
+  
+} // end perfectbg_animation_started
+
+void perfectbg_animation_stopped(Animation *animation, bool finished, void *data) {
+
+	//APP_LOG(APP_LOG_LEVEL_INFO, "PERFECT BG ANIMATE, ANIMATION STOPPED ROUTINE");	
+	// reset bg and icon
+	//APP_LOG(APP_LOG_LEVEL_DEBUG, "PERFECT BG ANIMATE, ANIMATION STOPPED, SET TO BG: %s ", last_bg);
+	text_layer_set_text(bg_layer, last_bg);
+	load_icon();
+	load_bg_delta();
+  
+} // end perfectbg_animation_stopped
+
+void destroy_perfectbg_animation(PropertyAnimation **perfectbg_animation) {
+
+	if (*perfectbg_animation == NULL) {
+      return;
+	}
+
+	if (animation_is_scheduled((Animation*) *perfectbg_animation)) {
+      animation_unschedule((Animation*) *perfectbg_animation);
+	}
+
+	property_animation_destroy(*perfectbg_animation);
+	*perfectbg_animation = NULL;
+  
+} // end destroy_perfectbg_animation
+
+void animate_perfectbg() {
+
+	// VARIABLES 
+	
+	// for animation
+	GRect from_bgrect = GRect(0,0,0,0);
+	GRect to_bgrect = GRect(0,0,0,0);
+
+	Layer *animatebg_layer = NULL;
+  
+	// CODE START
+
+	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE PERFECTBG");
+	// slide BG out to right
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SLIDE BG");
+	if (currentBG_isMMOL) { 
+      create_update_bitmap(&perfectbg_bitmap,perfectbg_layer,PERFECTBG_ICONS[CLUB55_ICON_INDX]);
+	}
+	else {
+      create_update_bitmap(&perfectbg_bitmap,perfectbg_layer,PERFECTBG_ICONS[CLUB100_ICON_INDX]);
+	}
+  
+	animatebg_layer = bitmap_layer_get_layer(perfectbg_layer);
+	from_bgrect = GRect(0, -7, 95, 47);
+	to_bgrect = GRect(144, -7, 95, 47);      
+	destroy_perfectbg_animation(&perfectbg_animation);
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, CREATE FRAME");
+	perfectbg_animation = property_animation_create_layer_frame(animatebg_layer, &from_bgrect, &to_bgrect);
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SET DURATION AND CURVE");
+	animation_set_duration((Animation*) perfectbg_animation, PERFECTBG_ANIMATE_SECS*MS_IN_A_SECOND);
+	animation_set_curve((Animation*) perfectbg_animation, AnimationCurveLinear);
+  
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SET HANDLERS");
+	animation_set_handlers((Animation*) perfectbg_animation, (AnimationHandlers) {
+	  .started = (AnimationStartedHandler) perfectbg_animation_started,
+	  .stopped = (AnimationStoppedHandler) perfectbg_animation_stopped,
+	}, NULL /* callback data */);
+      
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SCHEDULE");
+	animation_schedule((Animation*) perfectbg_animation);   
+
+} //end animate_perfectbg
+
 static void load_bg() {
     //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, FUNCTION START");
 	
@@ -1178,7 +1280,7 @@ static void load_bg() {
 	// pointers to be used to MGDL or MMOL values for parsing
 	uint16_t *bg_ptr = NULL;
 	uint8_t *specvalue_ptr = NULL;
-	
+  
 	// CODE START
 	
 	// if special value set, erase anything in the icon field
@@ -1188,7 +1290,7 @@ static void load_bg() {
 	
 	// set special value alert to false no matter what
 	specvalue_alert = false;
-
+  
     // see if we're doing MGDL or MMOL; get currentBG_isMMOL value in myBGAtoi
 	// convert BG value from string to int
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, BGATOI IN, CURRENT_BG: %d LAST_BG: %s ", current_bg, last_bg);
@@ -1229,63 +1331,65 @@ static void load_bg() {
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, UNEXP BG, CURRENT_BG: %d LAST_BG: %s ", current_bg, last_bg);
         text_layer_set_text(bg_layer, "ERR");
         create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[NONE_SPECVALUE_ICON_INDX]);
-		specvalue_alert = true;
+        specvalue_alert = true;
       }
       
 	} // if current_bg <= 0
 	  
     else {
       // valid BG
+      
 	  // check for special value, if special value, then replace icon and blank BG; else send current BG  
 	  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BEFORE CREATE SPEC VALUE BITMAP");
 	  if ((current_bg == specvalue_ptr[NO_ANTENNA_VALUE_INDX]) || (current_bg == specvalue_ptr[BAD_RF_VALUE_INDX])) {
-		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET BROKEN ANTENNA");
-		text_layer_set_text(bg_layer, "");
-		create_update_bitmap(&specialvalue_bitmap,icon_layer, SPECIAL_VALUE_ICONS[BROKEN_ANTENNA_ICON_INDX]);
-		specvalue_alert = true;
+	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET BROKEN ANTENNA");
+	    text_layer_set_text(bg_layer, "");
+	    create_update_bitmap(&specialvalue_bitmap,icon_layer, SPECIAL_VALUE_ICONS[BROKEN_ANTENNA_ICON_INDX]);
+	    specvalue_alert = true;
 	  }
 	  else if (current_bg == specvalue_ptr[SENSOR_NOT_CALIBRATED_VALUE_INDX]) {
-		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET BLOOD DROP");
-		text_layer_set_text(bg_layer, "");
-		create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[BLOOD_DROP_ICON_INDX]);
+	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET BLOOD DROP");
+	    text_layer_set_text(bg_layer, "");
+	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[BLOOD_DROP_ICON_INDX]);
 	    specvalue_alert = true;        
 	  }
 	  else if ((current_bg == specvalue_ptr[SENSOR_NOT_ACTIVE_VALUE_INDX]) || (current_bg == specvalue_ptr[MINIMAL_DEVIATION_VALUE_INDX]) 
 	        || (current_bg == specvalue_ptr[STOP_LIGHT_VALUE_INDX])) {
-		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET STOP LIGHT");
-		text_layer_set_text(bg_layer, "");
-		create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[STOP_LIGHT_ICON_INDX]);
-		specvalue_alert = true;
+	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET STOP LIGHT");
+	    text_layer_set_text(bg_layer, "");
+	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[STOP_LIGHT_ICON_INDX]);
+	    specvalue_alert = true;
 	  }
 	  else if (current_bg == specvalue_ptr[HOURGLASS_VALUE_INDX]) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET HOUR GLASS");
 	    text_layer_set_text(bg_layer, "");
-		create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[HOURGLASS_ICON_INDX]);
-		specvalue_alert = true;
+	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[HOURGLASS_ICON_INDX]);
+	    specvalue_alert = true;
 	  }
 	  else if (current_bg == specvalue_ptr[QUESTION_MARKS_VALUE_INDX]) {
-		//PP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, CLEAR TEXT");
-        text_layer_set_text(bg_layer, "");
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, SET BITMAP");
-        create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[QUESTION_MARKS_ICON_INDX]); 
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, DONE");
-		specvalue_alert = true;
+	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, CLEAR TEXT");
+	    text_layer_set_text(bg_layer, "");
+	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, SET BITMAP");
+	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[QUESTION_MARKS_ICON_INDX]); 
+	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, DONE");
+	    specvalue_alert = true;
 	  }
 	  else if (current_bg < bg_ptr[SPECVALUE_BG_INDX]) {
-		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, UNEXPECTED SPECIAL VALUE: SET ERR ICON");
-		text_layer_set_text(bg_layer, "");
-		create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[ERR_SPECVALUE_ICON_INDX]);
-		specvalue_alert = true;
+	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, UNEXPECTED SPECIAL VALUE: SET ERR ICON");
+	    text_layer_set_text(bg_layer, "");
+	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[ERR_SPECVALUE_ICON_INDX]);
+	    specvalue_alert = true;
 	  } // end special value checks
 		
       //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, AFTER CREATE SPEC VALUE BITMAP");
       
 	  if (specvalue_alert == false) {
-		// we didn't find a special value, so set BG instead
-		// arrow icon already set separately
-		if (current_bg < bg_ptr[SHOWLOW_BG_INDX]) {
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG: SET TO LO");
-		  text_layer_set_text(bg_layer, "LO");
+	    // we didn't find a special value, so set BG instead
+	    // arrow icon already set separately
+		// check for HI or LO message first
+	    if (current_bg < bg_ptr[SHOWLOW_BG_INDX]) {
+		    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG: SET TO LO");
+		    text_layer_set_text(bg_layer, "LO");
 		}
 		else if (current_bg > bg_ptr[SHOWHIGH_BG_INDX]) {
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG: SET TO HI");
@@ -1293,13 +1397,19 @@ static void load_bg() {
 		}
 		else {
 		  // else update with current BG
-          //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, SET TO BG: %s ", last_bg);
+		  //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, SET TO BG: %s ", last_bg);
 		  text_layer_set_text(bg_layer, last_bg);
-		}
+		  // check for perfect BG, if so then animate it
+		  if ( ((!currentBG_isMMOL) && (current_bg == 100)) || ((currentBG_isMMOL) && (current_bg == 55)) ) {
+		    // PERFECT BG CLUB, ANIMATE BG      
+		    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG");
+		    animate_perfectbg();
+		  } // perfect bg club, animate BG  
+		} // end else update with current BG
 	  } // end bg checks (if special_value_bitmap)
   
       // check BG and vibrate if needed
-    
+      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, CHECK TO SEE IF WE NEED TO VIBRATE");
 	  // check for SPECIAL VALUE
       if ( ( ((current_bg > 0) && (current_bg < bg_ptr[SPECVALUE_BG_INDX]))
           && ((lastAlertTime == 0) || (lastAlertTime > SPECVALUE_SNZ_MIN)) )
@@ -1804,7 +1914,7 @@ static void load_bg_delta() {
   	// check if LOADING.., if true set message
 	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
-      strncpy(formatted_bg_delta, "LOADING 6.0", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "LOADING 6.100", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
@@ -2094,8 +2204,7 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: VALUES");
       strncpy(current_values, new_tuple->value->cstring, VALUE_MSGSTR_SIZE);
       load_values();
-      break; // break for CGM_VALS_KEY
-      
+      break; // break for CGM_VALS_KEY  
 	  
   }  // end switch(key)
 
@@ -2195,6 +2304,14 @@ void window_load_cgm(Window *window_cgm) {
 
   window_layer_cgm = window_get_root_layer(window_cgm);
   
+  // TOPHALF WHITE
+  tophalf_layer = text_layer_create(GRect(0, 0, 144, 88));
+  text_layer_set_text_color(tophalf_layer, GColorBlack);
+  text_layer_set_background_color(tophalf_layer, GColorWhite);
+  text_layer_set_font(tophalf_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
+  text_layer_set_text_alignment(tophalf_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer_cgm, text_layer_get_layer(tophalf_layer));
+  
   // DELTA BG
   message_layer = text_layer_create(GRect(0, 33, 144, 55));
   text_layer_set_text_color(message_layer, GColorBlack);
@@ -2203,10 +2320,10 @@ void window_load_cgm(Window *window_cgm) {
   text_layer_set_text_alignment(message_layer, GTextAlignmentCenter);
   layer_add_child(window_layer_cgm, text_layer_get_layer(message_layer));
 
-  // ARROW OR SPECIAL VALUE
+  // ICON, ARROW OR SPECIAL VALUE
   icon_layer = bitmap_layer_create(GRect(85, -7, 78, 50));
   bitmap_layer_set_alignment(icon_layer, GAlignTopLeft);
-  bitmap_layer_set_background_color(icon_layer, GColorWhite);
+  bitmap_layer_set_background_color(icon_layer, GColorClear);
   layer_add_child(window_layer_cgm, bitmap_layer_get_layer(icon_layer));
 
   // APP TIME AGO ICON
@@ -2226,11 +2343,17 @@ void window_load_cgm(Window *window_cgm) {
   // BG
   bg_layer = text_layer_create(GRect(0, -5, 95, 47));
   text_layer_set_text_color(bg_layer, GColorBlack);
-  text_layer_set_background_color(bg_layer, GColorWhite);
+  text_layer_set_background_color(bg_layer, GColorClear);
   text_layer_set_font(bg_layer, fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD));
   text_layer_set_text_alignment(bg_layer, GTextAlignmentCenter);
   layer_add_child(window_layer_cgm, text_layer_get_layer(bg_layer));
 
+  // PERFECT BG
+  perfectbg_layer = bitmap_layer_create(GRect(0, -7, 95, 47));
+  bitmap_layer_set_alignment(perfectbg_layer, GAlignTopLeft);
+  bitmap_layer_set_background_color(perfectbg_layer, GColorClear);
+  layer_add_child(window_layer_cgm, bitmap_layer_get_layer(perfectbg_layer));
+  
   // CGM TIME AGO ICON
   cgmicon_layer = bitmap_layer_create(GRect(5, 63, 40, 24));
   bitmap_layer_set_alignment(cgmicon_layer, GAlignLeft);
@@ -2298,7 +2421,7 @@ void window_load_cgm(Window *window_cgm) {
 	TupletCString(CGM_DLTA_KEY, "LOAD"),
 	TupletCString(CGM_UBAT_KEY, " "),
 	TupletCString(CGM_NAME_KEY, " "),
-  TupletCString(CGM_VALS_KEY, " ")
+	TupletCString(CGM_VALS_KEY, " ")
   };
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, ABOUT TO CALL APP SYNC INIT");
@@ -2319,21 +2442,24 @@ void window_unload_cgm(Window *window_cgm) {
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, APP SYNC DEINIT");
   app_sync_deinit(&sync_cgm);
-
+  
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY GBITMAPS IF EXIST");
   destroy_null_GBitmap(&icon_bitmap);
   destroy_null_GBitmap(&appicon_bitmap);
   destroy_null_GBitmap(&cgmicon_bitmap);
   destroy_null_GBitmap(&specialvalue_bitmap);
   destroy_null_GBitmap(&batticon_bitmap);
-
+  destroy_null_GBitmap(&perfectbg_bitmap);
+  
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY BITMAPS IF EXIST");  
   destroy_null_BitmapLayer(&icon_layer);
   destroy_null_BitmapLayer(&cgmicon_layer);
   destroy_null_BitmapLayer(&appicon_layer);
   destroy_null_BitmapLayer(&batticon_layer);
+  destroy_null_BitmapLayer(&perfectbg_layer);
 
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY TEXT LAYERS IF EXIST");  
+  destroy_null_TextLayer(&tophalf_layer);
   destroy_null_TextLayer(&bg_layer);
   destroy_null_TextLayer(&cgmtime_layer);
   destroy_null_TextLayer(&message_layer);
@@ -2346,12 +2472,15 @@ void window_unload_cgm(Window *window_cgm) {
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY INVERTER LAYERS IF EXIST");  
   destroy_null_InverterLayer(&inv_battlevel_layer);
   
+  // destroy animation
+  destroy_perfectbg_animation(&perfectbg_animation);
+  
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD OUT");
 } // end window_unload_cgm
 
 static void init_cgm(void) {
   //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE IN");
-  
+
   // subscribe to the tick timer service
   tick_timer_service_subscribe(MINUTE_UNIT, &handle_minute_tick_cgm);
 
@@ -2362,16 +2491,16 @@ static void init_cgm(void) {
   if (window_cgm != NULL) {
     window_cgm = NULL;
   }
-  
+
   // create the windows
   window_cgm = window_create();
   window_set_background_color(window_cgm, GColorBlack);
   window_set_fullscreen(window_cgm, true);
   window_set_window_handlers(window_cgm, (WindowHandlers) {
     .load = window_load_cgm,
-	.unload = window_unload_cgm  
+    .unload = window_unload_cgm  
   });
-
+  
   //APP_LOG(APP_LOG_LEVEL_INFO, "INIT CODE, REGISTER APP MESSAGE ERROR HANDLERS"); 
   app_message_register_inbox_dropped(inbox_dropped_handler_cgm);
   app_message_register_outbox_failed(outbox_failed_handler_cgm);
