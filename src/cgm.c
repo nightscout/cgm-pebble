@@ -16,6 +16,7 @@ TextLayer *t1dname_layer = NULL;
 TextLayer *time_watch_layer = NULL;
 TextLayer *time_app_layer = NULL;
 TextLayer *date_app_layer = NULL;
+TextLayer *awesomebg_layer = NULL;
 
 BitmapLayer *icon_layer = NULL;
 BitmapLayer *cgmicon_layer = NULL;
@@ -33,6 +34,7 @@ GBitmap *perfectbg_bitmap = NULL;
 InverterLayer *inv_battlevel_layer = NULL;
 
 PropertyAnimation *perfectbg_animation = NULL;
+PropertyAnimation *awesomebg_animation = NULL;
 
 static char time_watch_text[] = "00:00";
 static char date_app_text[] = "Wed 13 ";
@@ -46,8 +48,8 @@ static uint8_t sync_buffer_cgm[166];
 // variables for timers and time
 AppTimer *timer_cgm = NULL;
 AppTimer *BT_timer = NULL;
-AppTimer *timer_animatebg = NULL;
-time_t time_now = 0;
+time_t cgm_time_now = 0;
+time_t app_time_now = 0;
 int timeformat = 0;
 
 // global variable for bluetooth connection
@@ -78,6 +80,9 @@ static uint8_t lastAlertTime = 0;
 
 // global special value alert
 static bool specvalue_alert = false;
+
+// global appsync retries counter
+static uint8_t appsyncandmsg_retries_counter = 0;
 
 // global overwrite variables for vibrating when hit a specific BG if already in a snooze
 static bool specvalue_overwrite = false;
@@ -196,6 +201,13 @@ static const bool TurnOff_CHECKCGM_Msg = false;
 static const bool TurnOff_CHECKPHONE_Msg = false;
 
 // Control Vibrations
+// SPECIAL BOOL TO HARD CODE VIBRATIONS OFF; If you want no vibrations, SET TO true
+// Use for Sleep Face or anyone else for a custom load
+bool HardCodeNoVibrations = false;
+
+// ** END OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
+
+// Control Vibrations for Config File
 // IF YOU WANT NO VIBRATIONS, SET TO true
 bool TurnOffAllVibrations = false;
 // IF YOU WANT LESS INTENSE VIBRATIONS, SET TO true
@@ -208,12 +220,15 @@ bool TurnOffStrongVibrations = false;
 // CGM DATA RECEIVED EVERY 60 SECONDS, GOING BEYOND THAT MAY RESULT IN MISSED DATA
 static const uint8_t BT_ALERT_WAIT_SECS = 45;
 
-// ** END OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
-
 // Message Timer & Animate Wait Times, in Seconds
 static const uint8_t WATCH_MSGSEND_SECS = 60;
 static const uint8_t LOADING_MSGSEND_SECS = 4;
 static const uint8_t PERFECTBG_ANIMATE_SECS = 10;
+static const uint8_t AWESOMEBG_ANIMATE_SECS = 10;
+
+// App Sync / Message retries, for timeout / busy problems
+// Change to see if there is a temp or long term problem
+static const uint8_t APPSYNCANDMSG_RETRIES_MAX = 6;
 
 enum CgmKey {
 	CGM_ICON_KEY = 0x0,		// TUPLE_CSTRING, MAX 2 BYTES (10)
@@ -223,7 +238,7 @@ enum CgmKey {
 	CGM_DLTA_KEY = 0x4,		// TUPLE_CSTRING, MAX 5 BYTES (BG DELTA, -100 or -10.0)
 	CGM_UBAT_KEY = 0x5,		// TUPLE_CSTRING, MAX 3 BYTES (UPLOADER BATTERY, 100)
 	CGM_NAME_KEY = 0x6,		// TUPLE_CSTRING, MAX 9 BYTES (Christine)
-	CGM_VALS_KEY = 0x7		// TUPLE_CSTRING, MAX 25 BYTES (0,000,000,000,000,0,0,0,0)
+  CGM_VALS_KEY = 0x7    // TUPLE_CSTRING, MAX 25 BYTES (0,000,000,000,000,0,0,0,0)
 }; 
 // TOTAL MESSAGE DATA 4x3+2+5+3+9+25 = 56 BYTES
 // TOTAL KEY HEADER DATA (STRINGS) 4x7+2 = 28 BYTES
@@ -609,7 +624,7 @@ static void alert_handler_cgm(uint8_t alertValue) {
   
 	// CODE START
 	
-	if (TurnOffAllVibrations) {
+	if ( (TurnOffAllVibrations) || (HardCodeNoVibrations) ) {
       //turn off all vibrations is set, return out here
       return;
 	}
@@ -778,11 +793,6 @@ void sync_error_callback_cgm(DictionaryResult appsync_dict_error, AppMessageResu
   
   // CODE START
   
-  // APPSYNC ERROR debug logs
-  APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC ERROR");
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC MSG ERR CODE: %i RES: %s", appsync_error, translate_app_error(appsync_error));
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC DICT ERR CODE: %i RES: %s", appsync_dict_error, translate_dict_error(appsync_dict_error));
-
   bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
   if (!bluetooth_connected_cgm) {
@@ -790,34 +800,57 @@ void sync_error_callback_cgm(DictionaryResult appsync_dict_error, AppMessageResu
     return;
   }
   
-  appsync_err_openerr = app_message_outbox_begin(&iter);
+  // increment app sync retries counter
+  appsyncandmsg_retries_counter++;
   
-  if (appsync_err_openerr == APP_MSG_OK) {
-    // reset AppSyncErrAlert to flag for vibrate
-	AppSyncErrAlert = false;
-	
-	// send message
-    appsync_err_senderr = app_message_outbox_send();
-	if (appsync_err_senderr != APP_MSG_OK ) {
-	  APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC SEND ERROR");
-	  APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC SEND ERR CODE: %i RES: %s", appsync_err_senderr, translate_app_error(appsync_err_senderr));
-	} 
-	else {
-	  return;
-	}
-  }
-
-  APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC RESEND ERROR");
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC RESEND ERR CODE: %i RES: %s", appsync_err_openerr, translate_app_error(appsync_err_openerr));
-  APP_LOG(APP_LOG_LEVEL_DEBUG, "AppSyncErrAlert:  %i", AppSyncErrAlert);
-    
+  // if hit max counter, skip resend and flag user
+  if (appsyncandmsg_retries_counter < APPSYNCANDMSG_RETRIES_MAX) {
+  
+    // APPSYNC ERROR debug logs
+    APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC MSG ERR CODE: %i RES: %s", appsync_error, translate_app_error(appsync_error));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC DICT ERR CODE: %i RES: %s", appsync_dict_error, translate_dict_error(appsync_dict_error));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
+  
+    // try to resend the message; open app message outbox
+    appsync_err_openerr = app_message_outbox_begin(&iter); 
+    if (appsync_err_openerr == APP_MSG_OK) {
+      // could open app message outbox; send message
+      appsync_err_senderr = app_message_outbox_send();
+      if (appsync_err_senderr == APP_MSG_OK ) {
+        // everything OK, reset AppSyncErrAlert so no vibrate
+        AppSyncErrAlert = false;
+        // sent message OK; return
+	      return;
+      } // if appsync_err_senderr
+    } // if appsync_err_openerr
+  } // if appsyncandmsg_retries_counter
+  
+  // check bluetooth again
   bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
   if (!bluetooth_connected_cgm) {
     // bluetooth is out, BT message already set; return out
     return;
   }
-    
+  
+  // flag error
+  if (appsyncandmsg_retries_counter >= APPSYNCANDMSG_RETRIES_MAX) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC TOO MANY MESSAGES ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC MSG ERR CODE: %i RES: %s", appsync_error, translate_app_error(appsync_error));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC DICT ERR CODE: %i RES: %s", appsync_dict_error, translate_dict_error(appsync_dict_error));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
+  }
+  else {
+    APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC RESEND ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC RESEND MSG OPEN ERR CODE: %i RES: %s", appsync_err_openerr, translate_app_error(appsync_err_openerr));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC RESEND MSG SEND ERR CODE: %i RES: %s", appsync_err_senderr, translate_app_error(appsync_err_senderr));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "AppSyncErrAlert: %i  appsyncandmsg_retries_counter: %i", AppSyncErrAlert, appsyncandmsg_retries_counter);
+  } 
+  
+  // reset appsync retries counter
+  appsyncandmsg_retries_counter = 0;
+  
   // set message to RESTART WATCH -> PHONE
   text_layer_set_text(message_layer, "RSTRT WCH/PH");
     
@@ -849,48 +882,65 @@ void inbox_dropped_handler_cgm(AppMessageResult appmsg_indrop_error, void *conte
 	AppMessageResult appmsg_indrop_senderr = APP_MSG_OK;
   
 	// CODE START
-	
-	// APPMSG IN DROP debug logs
-	APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR");
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP ERR CODE: %i RES: %s", appmsg_indrop_error, translate_app_error(appmsg_indrop_error));
 
 	bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-	if (!bluetooth_connected_cgm) {
-      // bluetooth is out, BT message already set; return out
-      return;
-	}
+  if (!bluetooth_connected_cgm) {
+    // bluetooth is out, BT message already set; return out
+    return;
+  }
   
-	appmsg_indrop_openerr = app_message_outbox_begin(&iter);
+  // increment app sync retries counter
+  appsyncandmsg_retries_counter++;
   
-	if (appmsg_indrop_openerr == APP_MSG_OK) {
-      // reset AppMsgInDropAlert to flag for vibrate
-	  AppMsgInDropAlert = false;
-	
-  	  // send message
+  // if hit max counter, skip resend and flag user
+  if (appsyncandmsg_retries_counter < APPSYNCANDMSG_RETRIES_MAX) {
+  
+	  // APPMSG IN DROP debug logs
+	  APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR");
+	  APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP ERR CODE: %i RES: %s", appmsg_indrop_error, translate_app_error(appmsg_indrop_error));
+	  APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
+    
+    // try to resend the message; open app message outbox
+    appmsg_indrop_openerr = app_message_outbox_begin(&iter); 
+    if (appmsg_indrop_openerr == APP_MSG_OK) {
+      // could open app message outbox; send message
       appmsg_indrop_senderr = app_message_outbox_send();
-	  if (appmsg_indrop_senderr != APP_MSG_OK ) {
-	    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP SEND ERROR");
-	    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP SEND ERR CODE: %i RES: %s", appmsg_indrop_senderr, translate_app_error(appmsg_indrop_senderr));
-	  } 
-	  else {
-	    return;
-	  }
-  	}
-
-	APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP RESEND ERROR");
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP RESEND ERR CODE: %i RES: %s", appmsg_indrop_openerr, translate_app_error(appmsg_indrop_openerr));
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "AppMsgInDropAlert:  %i", AppMsgInDropAlert);
+      if (appmsg_indrop_senderr == APP_MSG_OK ) {
+        // everything OK, reset AppSyncErrAlert so no vibrate
+        AppMsgInDropAlert = false;
+        // sent message OK; return
+	      return;
+      } // if appmsg_indrop_senderr
+    } // if appmsg_indrop_openerr
+  } // if appsyncandmsg_retries_counter
+  
+  // check bluetooth again
+  bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-	bluetooth_connected_cgm = bluetooth_connection_service_peek();
-    
-	if (!bluetooth_connected_cgm) {
-      // bluetooth is out, BT message already set; return out
-      return;
-	}
+  if (!bluetooth_connected_cgm) {
+    // bluetooth is out, BT message already set; return out
+    return;
+  }
+  
+  // flag error
+  if (appsyncandmsg_retries_counter >= APPSYNCANDMSG_RETRIES_MAX) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP TOO MANY MESSAGES ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP ERR CODE ERR CODE: %i RES: %s", appmsg_indrop_error, translate_app_error(appmsg_indrop_error));
+	  APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
+  }
+  else {
+    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP RESEND ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP RESEND MSG OPEN ERR CODE: %i RES: %s", appmsg_indrop_openerr, translate_app_error(appmsg_indrop_openerr));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP RESEND MSG SEND ERR CODE: %i RES: %s", appmsg_indrop_senderr, translate_app_error(appmsg_indrop_senderr));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "AppMsgInDropAlert: %i  appsyncandmsg_retries_counter: %i", AppMsgInDropAlert, appsyncandmsg_retries_counter);
+  } 
+  
+  // reset appsync retries counter
+  appsyncandmsg_retries_counter = 0; 
     
 	// set message to RESTART WATCH -> PHONE
-	text_layer_set_text(message_layer, "RSTRT WCH/PHN");
+	text_layer_set_text(message_layer, "RSTRT WCH/PH");
     
 	// erase cgm and app ago times
 	text_layer_set_text(cgmtime_layer, "");
@@ -904,8 +954,8 @@ void inbox_dropped_handler_cgm(AppMessageResult appmsg_indrop_error, void *conte
 
 	// check if need to vibrate
 	if (!AppMsgInDropAlert) {
-      //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR: VIBRATE");
-      alert_handler_cgm(APPMSG_INDROP_VIBE);
+    //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR: VIBRATE");
+    alert_handler_cgm(APPMSG_INDROP_VIBE);
 	  AppMsgInDropAlert = true;
 	} 
     
@@ -921,47 +971,64 @@ void outbox_failed_handler_cgm(DictionaryIterator *failed, AppMessageResult appm
   
 	// CODE START
 	
-	// APPMSG OUT FAIL debug logs
-	APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR");
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL ERR CODE: %i RES: %s", appmsg_outfail_error, translate_app_error(appmsg_outfail_error));
-
 	bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-	if (!bluetooth_connected_cgm) {
-      // bluetooth is out, BT message already set; return out
-      return;
-	}
+  if (!bluetooth_connected_cgm) {
+    // bluetooth is out, BT message already set; return out
+    return;
+  }
   
-	appmsg_outfail_openerr = app_message_outbox_begin(&iter);
+  // increment app sync and msg retries counter
+  appsyncandmsg_retries_counter++;
   
-	if (appmsg_outfail_openerr == APP_MSG_OK) {
-      // reset AppMsgOutFailAlert to flag for vibrate
-	  AppMsgOutFailAlert = false;
-	
-  	  // send message
+  // if hit max counter, skip resend and flag user
+  if (appsyncandmsg_retries_counter < APPSYNCANDMSG_RETRIES_MAX) {
+  
+	  // APPMSG OUT FAIL debug logs
+	  APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR");
+	  APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL ERR CODE: %i RES: %s", appmsg_outfail_error, translate_app_error(appmsg_outfail_error));
+	  APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
+    
+    // try to resend the message; open app message outbox
+    appmsg_outfail_openerr = app_message_outbox_begin(&iter);
+    if (appmsg_outfail_openerr == APP_MSG_OK) {
+      // could open app message outbox; send message
       appmsg_outfail_senderr = app_message_outbox_send();
-	  if (appmsg_outfail_senderr != APP_MSG_OK ) {
-	    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL SEND ERROR");
-	    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL SEND ERR CODE: %i RES: %s", appmsg_outfail_senderr, translate_app_error(appmsg_outfail_senderr));
-	  } 
-	  else {
-	    return;
-	  }
-  	}
-
-	APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL RESEND ERROR");
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL RESEND ERR CODE: %i RES: %s", appmsg_outfail_openerr, translate_app_error(appmsg_outfail_openerr));
-	APP_LOG(APP_LOG_LEVEL_DEBUG, "AppMsgOutFailAlert:  %i", AppMsgOutFailAlert);
+      if (appmsg_outfail_senderr == APP_MSG_OK ) {
+        // everything OK, reset AppSyncErrAlert so no vibrate
+        AppMsgOutFailAlert = false;
+        // sent message OK; return
+	      return;
+      } // if appmsg_outfail_senderr
+    } // if appmsg_outfail_openerr
+  } // if appsyncandmsg_retries_counter
+  
+  // check bluetooth again
+  bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-	bluetooth_connected_cgm = bluetooth_connection_service_peek();
-    
-	if (!bluetooth_connected_cgm) {
-      // bluetooth is out, BT message already set; return out
-      return;
-	}
-    
+  if (!bluetooth_connected_cgm) {
+    // bluetooth is out, BT message already set; return out
+    return;
+  }
+  
+  // flag error
+  if (appsyncandmsg_retries_counter >= APPSYNCANDMSG_RETRIES_MAX) {
+	  APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR");
+	  APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL ERR CODE: %i RES: %s", appmsg_outfail_error, translate_app_error(appmsg_outfail_error));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
+  }
+  else {
+    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL RESEND ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL RESEND MSG OPEN ERR CODE: %i RES: %s", appmsg_outfail_openerr, translate_app_error(appmsg_outfail_openerr));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL RESEND MSG SEND ERR CODE: %i RES: %s", appmsg_outfail_senderr, translate_app_error(appmsg_outfail_senderr));
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "AppMsgOutFailAlert: %i  appsyncandmsg_retries_counter: %i", AppMsgOutFailAlert, appsyncandmsg_retries_counter);
+  } 
+  
+  // reset appsync retries counter
+  appsyncandmsg_retries_counter = 0; 
+  
 	// set message to RESTART WATCH -> PHONE
-	text_layer_set_text(message_layer, "RSTRT WCH/PHN");
+	text_layer_set_text(message_layer, "RSTRT WCH/PH");
     
 	// erase cgm and app ago times
 	text_layer_set_text(cgmtime_layer, "");
@@ -975,8 +1042,8 @@ void outbox_failed_handler_cgm(DictionaryIterator *failed, AppMessageResult appm
 
 	// check if need to vibrate
 	if (!AppMsgOutFailAlert) {
-      //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR: VIBRATE");
-      alert_handler_cgm(APPMSG_OUTFAIL_VIBE);
+	  //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR: VIBRATE");
+	  alert_handler_cgm(APPMSG_OUTFAIL_VIBE);
 	  AppMsgOutFailAlert = true;
 	} 
 	
@@ -1091,44 +1158,48 @@ static void load_icon() {
 	
 } // end load_icon
 
+// forward declarations for animation code
 static void load_bg_delta();
+static void load_cgmtime();
+static void load_apptime();
 
 // ANIMATION CODE
 
+// PERFECTBG ANIMATION
 void perfectbg_animation_started(Animation *animation, void *data) {
 
-	//APP_LOG(APP_LOG_LEVEL_INFO, "PERFECT BG ANIMATE, ANIMATION STARTED ROUTINE"); 
+	//APP_LOG(APP_LOG_LEVEL_INFO, "PERFECT BG ANIMATE, ANIMATION STARTED ROUTINE");
+  
 	// clear out BG and icon
-	text_layer_set_text(bg_layer, " ");
-	create_update_bitmap(&icon_bitmap,icon_layer,PERFECTBG_ICONS[NONE_PERFECTBG_ICON_INDX]);
-	text_layer_set_text(message_layer, "GREAT JOB!");
+  text_layer_set_text(bg_layer, " ");
+	//create_update_bitmap(&icon_bitmap,icon_layer,PERFECTBG_ICONS[NONE_PERFECTBG_ICON_INDX]);
+  text_layer_set_text(message_layer, "DONT WRY BE:)");
   
 } // end perfectbg_animation_started
 
 void perfectbg_animation_stopped(Animation *animation, bool finished, void *data) {
 
-	//APP_LOG(APP_LOG_LEVEL_INFO, "PERFECT BG ANIMATE, ANIMATION STOPPED ROUTINE");	
+	//APP_LOG(APP_LOG_LEVEL_INFO, "PERFECT BG ANIMATE, ANIMATION STOPPED ROUTINE");
+	
 	// reset bg and icon
 	//APP_LOG(APP_LOG_LEVEL_DEBUG, "PERFECT BG ANIMATE, ANIMATION STOPPED, SET TO BG: %s ", last_bg);
 	text_layer_set_text(bg_layer, last_bg);
 	load_icon();
-	load_bg_delta();
+  load_bg_delta();
   
 } // end perfectbg_animation_stopped
 
 void destroy_perfectbg_animation(PropertyAnimation **perfectbg_animation) {
+  if (*perfectbg_animation == NULL) {
+    return;
+  }
 
-	if (*perfectbg_animation == NULL) {
-      return;
-	}
+  if (animation_is_scheduled((Animation*) *perfectbg_animation)) {
+    animation_unschedule((Animation*) *perfectbg_animation);
+  }
 
-	if (animation_is_scheduled((Animation*) *perfectbg_animation)) {
-      animation_unschedule((Animation*) *perfectbg_animation);
-	}
-
-	property_animation_destroy(*perfectbg_animation);
-	*perfectbg_animation = NULL;
-  
+  property_animation_destroy(*perfectbg_animation);
+  *perfectbg_animation = NULL;
 } // end destroy_perfectbg_animation
 
 void animate_perfectbg() {
@@ -1136,29 +1207,28 @@ void animate_perfectbg() {
 	// VARIABLES 
 	
 	// for animation
-	GRect from_bgrect = GRect(0,0,0,0);
-	GRect to_bgrect = GRect(0,0,0,0);
+	GRect from_perfectbg_rect = GRect(0,0,0,0);
+	GRect to_perfectbg_rect = GRect(0,0,0,0);
 
-	Layer *animatebg_layer = NULL;
+	Layer *animate_perfectbg_layer = NULL;
   
 	// CODE START
 
 	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE PERFECTBG");
 	// slide BG out to right
-	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SLIDE BG");
-	if (currentBG_isMMOL) { 
-      create_update_bitmap(&perfectbg_bitmap,perfectbg_layer,PERFECTBG_ICONS[CLUB55_ICON_INDX]);
-	}
-	else {
-      create_update_bitmap(&perfectbg_bitmap,perfectbg_layer,PERFECTBG_ICONS[CLUB100_ICON_INDX]);
-	}
-  
-	animatebg_layer = bitmap_layer_get_layer(perfectbg_layer);
-	from_bgrect = GRect(0, -7, 95, 47);
-	to_bgrect = GRect(144, -7, 95, 47);      
+	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE PERFECTBG, ANIMATE BG, SLIDE BG");
+  if (currentBG_isMMOL) { 
+    create_update_bitmap(&perfectbg_bitmap,perfectbg_layer,PERFECTBG_ICONS[CLUB55_ICON_INDX]);
+  }
+  else {
+    create_update_bitmap(&perfectbg_bitmap,perfectbg_layer,PERFECTBG_ICONS[CLUB100_ICON_INDX]);
+  }
+	animate_perfectbg_layer = bitmap_layer_get_layer(perfectbg_layer);
+	from_perfectbg_rect = GRect(0, -7, 95, 47);
+	to_perfectbg_rect = GRect(144, -7, 95, 47);      
 	destroy_perfectbg_animation(&perfectbg_animation);
 	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, CREATE FRAME");
-	perfectbg_animation = property_animation_create_layer_frame(animatebg_layer, &from_bgrect, &to_bgrect);
+	perfectbg_animation = property_animation_create_layer_frame(animate_perfectbg_layer, &from_perfectbg_rect, &to_perfectbg_rect);
 	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SET DURATION AND CURVE");
 	animation_set_duration((Animation*) perfectbg_animation, PERFECTBG_ANIMATE_SECS*MS_IN_A_SECOND);
 	animation_set_curve((Animation*) perfectbg_animation, AnimationCurveLinear);
@@ -1173,6 +1243,82 @@ void animate_perfectbg() {
 	animation_schedule((Animation*) perfectbg_animation);   
 
 } //end animate_perfectbg
+
+// AWESOMEBG ANIMATION
+void awesomebg_animation_started(Animation *animation, void *data) {
+
+	//APP_LOG(APP_LOG_LEVEL_INFO, "AWESOME BG ANIMATE, ANIMATION STARTED ROUTINE, CLEAR OUT BG DELTA");
+  
+	// clear out BG delta / message layer
+  text_layer_set_text(message_layer, "");
+  text_layer_set_text(cgmtime_layer, "");
+  text_layer_set_text(time_app_layer, "");
+  create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[NONE_TIMEAGO_ICON_INDX]);   
+  create_update_bitmap(&appicon_bitmap,appicon_layer,TIMEAGO_ICONS[NONE_TIMEAGO_ICON_INDX]); 
+  
+} // end awesomebg_animation_started
+
+void awesomebg_animation_stopped(Animation *animation, bool finished, void *data) {
+
+	//APP_LOG(APP_LOG_LEVEL_INFO, "AWESOME BG ANIMATE, ANIMATION STOPPED ROUTINE");
+	
+	// set BG delta / message layer
+	//APP_LOG(APP_LOG_LEVEL_DEBUG, "AWESOME BG ANIMATE, ANIMATION STOPPED, SET TO BG DELTA);
+  load_bg_delta();
+  load_cgmtime();
+  load_apptime();
+  
+} // end awesomebg_animation_stopped
+
+void destroy_awesomebg_animation(PropertyAnimation **awesomebg_animation) {
+  if (*awesomebg_animation == NULL) {
+    return;
+  }
+
+  if (animation_is_scheduled((Animation*) *awesomebg_animation)) {
+    animation_unschedule((Animation*) *awesomebg_animation);
+  }
+
+  property_animation_destroy(*awesomebg_animation);
+  *awesomebg_animation = NULL;
+} // end destroy_awesomebg_animation
+
+void animate_awesomebg() {
+
+	// VARIABLES 
+	
+	// for animation
+	GRect from_awesomebg_rect = GRect(0,0,0,0);
+	GRect to_awesomebg_rect = GRect(0,0,0,0);
+
+	Layer *animate_awesomebg_layer = NULL;
+  
+	// CODE START
+
+	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE AWESOMEBG");
+	// slide BG out to right
+	//APP_LOG(APP_LOG_LEVEL_INFO, "AWESOME BG, ANIMATE BG, SLIDE BG");
+  text_layer_set_text(awesomebg_layer, "EVERYTHING IS AWESOME");
+	animate_awesomebg_layer = text_layer_get_layer(awesomebg_layer);
+	from_awesomebg_rect = GRect(-10, 33, 144, 55);
+	to_awesomebg_rect = GRect(144, 33, 144, 55);      
+	destroy_awesomebg_animation(&awesomebg_animation);
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, CREATE FRAME");
+	awesomebg_animation = property_animation_create_layer_frame(animate_awesomebg_layer, &from_awesomebg_rect, &to_awesomebg_rect);
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SET DURATION AND CURVE");
+	animation_set_duration((Animation*) awesomebg_animation, AWESOMEBG_ANIMATE_SECS*MS_IN_A_SECOND);
+	animation_set_curve((Animation*) awesomebg_animation, AnimationCurveLinear);
+  
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SET HANDLERS");
+	animation_set_handlers((Animation*) awesomebg_animation, (AnimationHandlers) {
+	  .started = (AnimationStartedHandler) awesomebg_animation_started,
+	  .stopped = (AnimationStoppedHandler) awesomebg_animation_stopped,
+	}, NULL /* callback data */);
+      
+	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, SCHEDULE");
+	animation_schedule((Animation*) awesomebg_animation);   
+
+} //end animate_awesomebg
 
 static void load_bg() {
     //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, FUNCTION START");
@@ -1290,6 +1436,10 @@ static void load_bg() {
 	
 	// set special value alert to false no matter what
 	specvalue_alert = false;
+
+	// initialize inverter layers to hide
+	//layer_set_hidden((Layer *)inv_bg_layer, true);
+	//layer_set_hidden((Layer *)inv_icon_layer, true);
   
     // see if we're doing MGDL or MMOL; get currentBG_isMMOL value in myBGAtoi
 	// convert BG value from string to int
@@ -1386,7 +1536,6 @@ static void load_bg() {
 	  if (specvalue_alert == false) {
 	    // we didn't find a special value, so set BG instead
 	    // arrow icon already set separately
-		// check for HI or LO message first
 	    if (current_bg < bg_ptr[SHOWLOW_BG_INDX]) {
 		    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG: SET TO LO");
 		    text_layer_set_text(bg_layer, "LO");
@@ -1399,14 +1548,20 @@ static void load_bg() {
 		  // else update with current BG
 		  //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, SET TO BG: %s ", last_bg);
 		  text_layer_set_text(bg_layer, last_bg);
-		  // check for perfect BG, if so then animate it
-		  if ( ((!currentBG_isMMOL) && (current_bg == 100)) || ((currentBG_isMMOL) && (current_bg == 55)) ) {
+ 
+      if ( ((!currentBG_isMMOL) && (current_bg == 100)) || ((currentBG_isMMOL) && (current_bg == 55)) ) {
 		    // PERFECT BG CLUB, ANIMATE BG      
-		    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG");
+		    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE PERFECT BG");
 		    animate_perfectbg();
-		  } // perfect bg club, animate BG  
-		} // end else update with current BG
-	  } // end bg checks (if special_value_bitmap)
+      } // perfect bg club, animate BG
+      
+      if ( ((!currentBG_isMMOL) && (current_bg == 130)) || ((currentBG_isMMOL) && (current_bg == 75)) ) {
+		    // AWESOME BG CLUB, ANIMATE MESSAGE LAYER      
+		    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE MESSAGE LAYER");
+		    animate_awesomebg();
+      } // awesome bg club, animate message layer
+      
+		}	  } // end bg checks (if special_value_bitmap)
   
       // check BG and vibrate if needed
       //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, CHECK TO SEE IF WE NEED TO VIBRATE");
@@ -1702,12 +1857,12 @@ static void load_cgmtime() {
 	  // set rcvr on icon
       create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRON_ICON_INDX]);
       
-      time_now = time(NULL);
+      cgm_time_now = time(NULL);
       
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIME: %lu", current_cgm_time);
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, TIME NOW IN CGM: %lu", time_now);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, TIME NOW IN CGM: %lu", cgm_time_now);
         
-      current_cgm_timeago = abs(time_now - current_cgm_time);
+      current_cgm_timeago = abs(cgm_time_now - current_cgm_time);
         
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIMEAGO: %lu", current_cgm_timeago);
       
@@ -1790,11 +1945,11 @@ static void load_apptime(){
 	  // set phone on icon
       create_update_bitmap(&appicon_bitmap,appicon_layer,TIMEAGO_ICONS[PHONEON_ICON_INDX]);       
        
-      time_now = time(NULL);
+      app_time_now = time(NULL);
       
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, TIME NOW: %lu", time_now);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, TIME NOW: %lu", app_time_now);
       
-      current_app_timeago = abs(time_now - current_app_time);
+      current_app_timeago = abs(app_time_now - current_app_time);
       
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, CURRENT APP TIMEAGO: %lu", current_app_timeago);
       
@@ -1903,18 +2058,18 @@ static void load_bg_delta() {
       return;	
 	}
 
-  	// check for DATA OFFLINE condition, if true set message to fix condition	
-    if (strcmp(current_bg_delta, "ERR") == 0) {
-      strncpy(formatted_bg_delta, "RSTRT PHONE", MSGLAYER_BUFFER_SIZE);
+  	// check for DATA OFFLINE condition, if true set message to flag condition	
+    if (strcmp(current_bg_delta, "OFF") == 0) {
+      strncpy(formatted_bg_delta, "DATA OFFLINE", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
-      text_layer_set_text(bg_layer, "");
+      text_layer_set_text(bg_layer, " ");
       return;	
     }
   
   	// check if LOADING.., if true set message
 	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
-      strncpy(formatted_bg_delta, "LOADING 6.100", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "LOADING 6.3", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
@@ -2148,6 +2303,10 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
 
 	// CODE START
 	
+  // reset appsync retries counter
+  appsyncandmsg_retries_counter = 0;
+  
+  //parse key and tuple
 	switch (key) {
 
 	case CGM_ICON_KEY:;
@@ -2223,8 +2382,7 @@ static void send_cmd_cgm(void) {
   if (sendcmd_openerr != APP_MSG_OK) {
      APP_LOG(APP_LOG_LEVEL_INFO, "WATCH SENDCMD OPEN ERROR");
      APP_LOG(APP_LOG_LEVEL_DEBUG, "WATCH SENDCMD OPEN ERR CODE: %i RES: %s", sendcmd_openerr, translate_app_error(sendcmd_openerr));
-
-    return;
+     return;
   }
 
   //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD, MSG OUTBOX OPEN, NO ERROR, ABOUT TO SEND MSG TO APP");
@@ -2312,19 +2470,31 @@ void window_load_cgm(Window *window_cgm) {
   text_layer_set_text_alignment(tophalf_layer, GTextAlignmentCenter);
   layer_add_child(window_layer_cgm, text_layer_get_layer(tophalf_layer));
   
-  // DELTA BG
+  // AWESOME BG LAYER
+  awesomebg_layer = text_layer_create(GRect(-10, 33, 144, 55));
+  text_layer_set_text_color(awesomebg_layer, GColorBlack);
+  text_layer_set_background_color(awesomebg_layer, GColorClear);
+  text_layer_set_font(awesomebg_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
+  text_layer_set_text_alignment(awesomebg_layer, GTextAlignmentCenter);
+  layer_add_child(window_layer_cgm, text_layer_get_layer(awesomebg_layer));
+  
+  // DELTA BG / MESSAGE LAYER
   message_layer = text_layer_create(GRect(0, 33, 144, 55));
   text_layer_set_text_color(message_layer, GColorBlack);
-  text_layer_set_background_color(message_layer, GColorWhite);
+  text_layer_set_background_color(message_layer, GColorClear);
   text_layer_set_font(message_layer, fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD));
   text_layer_set_text_alignment(message_layer, GTextAlignmentCenter);
   layer_add_child(window_layer_cgm, text_layer_get_layer(message_layer));
-
+  
   // ICON, ARROW OR SPECIAL VALUE
   icon_layer = bitmap_layer_create(GRect(85, -7, 78, 50));
   bitmap_layer_set_alignment(icon_layer, GAlignTopLeft);
   bitmap_layer_set_background_color(icon_layer, GColorClear);
   layer_add_child(window_layer_cgm, bitmap_layer_get_layer(icon_layer));
+  
+  // INVERTER ICON LAYER
+  //inv_icon_layer = inverter_layer_create(GRect(85, -7, 78, 47));
+  //layer_add_child(window_get_root_layer(window_cgm), inverter_layer_get_layer(inv_icon_layer));
 
   // APP TIME AGO ICON
   appicon_layer = bitmap_layer_create(GRect(118, 63, 40, 24));
@@ -2353,6 +2523,10 @@ void window_load_cgm(Window *window_cgm) {
   bitmap_layer_set_alignment(perfectbg_layer, GAlignTopLeft);
   bitmap_layer_set_background_color(perfectbg_layer, GColorClear);
   layer_add_child(window_layer_cgm, bitmap_layer_get_layer(perfectbg_layer));
+  
+  // INVERTER BG LAYER
+  //inv_bg_layer = inverter_layer_create(GRect(0, -5, 95, 47));
+  //layer_add_child(window_get_root_layer(window_cgm), inverter_layer_get_layer(inv_bg_layer));
   
   // CGM TIME AGO ICON
   cgmicon_layer = bitmap_layer_create(GRect(5, 63, 40, 24));
@@ -2421,7 +2595,7 @@ void window_load_cgm(Window *window_cgm) {
 	TupletCString(CGM_DLTA_KEY, "LOAD"),
 	TupletCString(CGM_UBAT_KEY, " "),
 	TupletCString(CGM_NAME_KEY, " "),
-	TupletCString(CGM_VALS_KEY, " ")
+  TupletCString(CGM_VALS_KEY, " ")
   };
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW LOAD, ABOUT TO CALL APP SYNC INIT");
@@ -2468,12 +2642,14 @@ void window_unload_cgm(Window *window_cgm) {
   destroy_null_TextLayer(&time_watch_layer);
   destroy_null_TextLayer(&time_app_layer);
   destroy_null_TextLayer(&date_app_layer);
+  destroy_null_TextLayer(&awesomebg_layer);
 
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD, DESTROY INVERTER LAYERS IF EXIST");  
   destroy_null_InverterLayer(&inv_battlevel_layer);
   
   // destroy animation
   destroy_perfectbg_animation(&perfectbg_animation);
+  destroy_perfectbg_animation(&awesomebg_animation);
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD OUT");
 } // end window_unload_cgm
