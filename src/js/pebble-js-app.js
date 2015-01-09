@@ -47,6 +47,9 @@ function fetchCgmData() {
 
             if(req.status == 200) {
                 
+                // clear the XML timeout
+                clearTimeout(myCGMTimeout);
+              
                 // Load response   
                 response = JSON.parse(req.responseText);
                 response = response.bgs;
@@ -64,7 +67,7 @@ function fetchCgmData() {
                     values= " ",
                     currentIcon = "10",
                     currentBG = response[0].sgv,
-                    //currentBG = "100",
+                    //currentBG = "130",
                     //typeBG = opts.radio,
 
                     // get timezone offset
@@ -136,8 +139,6 @@ function fetchCgmData() {
                     } else {
                       values += ",1";  //Time Format 24 Hour  
                     }
-                  
-                    
                     
                     //console.log("Current Value: " + values);
                       
@@ -179,7 +180,7 @@ function fetchCgmData() {
                       bg: " ",
                       tcgm: 0,
                       tapp: 0,
-                      dlta: "ERR",
+                      dlta: "OFF",
                       ubat: " ",
                       name: " ",
                       vals: " "
@@ -192,6 +193,21 @@ function fetchCgmData() {
         } // end req.readyState == 4
     }; // req.onload
     req.send(null);
+    var myCGMTimeout = setTimeout (function () {
+      req.abort();
+      message = {
+                      icon: " ",
+                      bg: " ",
+                      tcgm: 0,
+                      tapp: 0,
+                      dlta: "OFF",
+                      ubat: " ",
+                      name: " ",
+                      vals: " "
+                    };          
+      console.log("DATA OFFLINE JS message", JSON.stringify(message));
+      MessageQueue.sendAppMessage(message);
+    }, 5000 ); // timeout in ms      
 } // end fetchCgmData
 
 // message queue-ing to pace calls from C function on watch
@@ -349,11 +365,12 @@ Pebble.addEventListener("showConfiguration", function(e) {
                         Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-6.html');
                         });
 
+// To make a slot2 build, edit addEventListener above with the follower URL
+// http://nightscout.github.io/cgm-pebble/s2-config-6.html
+
 Pebble.addEventListener("webviewclosed", function(e) {
                         var opts = JSON.parse(decodeURIComponent(e.response));
                         console.log("CLOSE CONFIG OPTIONS = " + JSON.stringify(opts));
                         // store endpoint in local storage
                         window.localStorage.setItem('cgmPebble', JSON.stringify(opts));                      
                         });
-
-
