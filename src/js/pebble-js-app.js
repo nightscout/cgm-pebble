@@ -176,14 +176,7 @@ function fetchCgmData() {
                   
                     // " " (space) shows these are init values (even though it's an error), not bad or null values
                     message = {
-                      icon: " ",
-                      bg: " ",
-                      tcgm: 0,
-                      tapp: 0,
-                      dlta: "OFF",
-                      ubat: " ",
-                      name: " ",
-                      vals: " "
+                      dlta: "OFF"
                     };
                   
                     console.log("DATA OFFLINE JS message", JSON.stringify(message));
@@ -196,18 +189,11 @@ function fetchCgmData() {
     var myCGMTimeout = setTimeout (function () {
       req.abort();
       message = {
-                      icon: " ",
-                      bg: " ",
-                      tcgm: 0,
-                      tapp: 0,
-                      dlta: "OFF",
-                      ubat: " ",
-                      name: " ",
-                      vals: " "
-                    };          
+        dlta: "OFF"
+      };          
       console.log("DATA OFFLINE JS message", JSON.stringify(message));
       MessageQueue.sendAppMessage(message);
-    }, 5000 ); // timeout in ms      
+    }, 45000 ); // timeout in ms; set at 45 seconds; can not go beyond 59 seconds      
 } // end fetchCgmData
 
 // message queue-ing to pace calls from C function on watch
@@ -364,9 +350,6 @@ Pebble.addEventListener("showConfiguration", function(e) {
                         console.log("Showing Configuration", JSON.stringify(e));
                         Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-6.html');
                         });
-
-// to build a slot2 version, edit addEventListener above with the following URL
-// http://nightscout.github.io/cgm-pebble/s2-config-6.html
 
 Pebble.addEventListener("webviewclosed", function(e) {
                         var opts = JSON.parse(decodeURIComponent(e.response));
