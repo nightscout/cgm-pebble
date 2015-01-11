@@ -104,6 +104,7 @@ static bool BT_timer_pop = false;
 static bool CGMOffAlert = false;
 static bool PhoneOffAlert = false;
 static bool LowBatteryAlert = false;
+static bool DataOfflineAlert = false;
 
 // global constants for time durations
 static const uint8_t MINUTEAGO = 60;
@@ -187,6 +188,7 @@ static const uint8_t BTOUT_VIBE = 1;
 static const uint8_t CGMOUT_VIBE = 1;
 static const uint8_t PHONEOUT_VIBE = 1;
 static const uint8_t LOWBATTERY_VIBE = 1;
+static const uint8_t DATAOFFLINE_VIBE = 1;
 
 // Icon Cross Out & Vibrate Once Wait Times, in Minutes
 // RANGE 0-240
@@ -222,13 +224,13 @@ static const uint8_t BT_ALERT_WAIT_SECS = 45;
 
 // Message Timer & Animate Wait Times, in Seconds
 static const uint8_t WATCH_MSGSEND_SECS = 60;
-static const uint8_t LOADING_MSGSEND_SECS = 4;
+static const uint8_t LOADING_MSGSEND_SECS = 6;
 static const uint8_t PERFECTBG_ANIMATE_SECS = 10;
 static const uint8_t AWESOMEBG_ANIMATE_SECS = 10;
 
 // App Sync / Message retries, for timeout / busy problems
 // Change to see if there is a temp or long term problem
-static const uint8_t APPSYNCANDMSG_RETRIES_MAX = 6;
+static const uint8_t APPSYNCANDMSG_RETRIES_MAX = 26;
 
 enum CgmKey {
 	CGM_ICON_KEY = 0x0,		// TUPLE_CSTRING, MAX 2 BYTES (10)
@@ -1092,6 +1094,11 @@ static void load_icon() {
 	const uint8_t LOGO_ARROW_ICON_INDX = 8;
 	const uint8_t ERR_ARROW_ICON_INDX = 9;
 	
+  // Got an icon value, check data offline condition, clear vibrate flag if needed
+  if ( (strcmp(current_bg_delta, "OFF") < 0) || (strcmp(current_bg_delta, "OFF") > 0) ) {
+    DataOfflineAlert = false;
+  }
+  
   //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ARROW ICON, BEFORE CHECK SPEC VALUE BITMAP");
 	// check if special value set
 	if (specvalue_alert == false) {
@@ -2053,23 +2060,28 @@ static void load_bg_delta() {
       strncpy(formatted_bg_delta, "NO ENDPOINT", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
-	  create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
+      create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
       specvalue_alert = false;
       return;	
 	}
 
-  	// check for DATA OFFLINE condition, if true set message to flag condition	
+  	// check for DATA OFFLINE condition, if true set message to fix condition	
     if (strcmp(current_bg_delta, "OFF") == 0) {
       strncpy(formatted_bg_delta, "DATA OFFLINE", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
+      if (!DataOfflineAlert) {
+        alert_handler_cgm(DATAOFFLINE_VIBE);
+        DataOfflineAlert = true;
+      } // DataOfflineAlert
+      // NOTE: DataOfflineAlert is cleared in load_icon because that means we got a good message again 
       return;	
-    }
+    } // strcmp "OFF"
   
   	// check if LOADING.., if true set message
-	// put " " (space) in bg field so logo continues to show
+  	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
-      strncpy(formatted_bg_delta, "LOADING 6.3", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "LOADING 6.4", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
