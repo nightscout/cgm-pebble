@@ -81,8 +81,9 @@ static uint8_t lastAlertTime = 0;
 // global special value alert
 static bool specvalue_alert = false;
 
-// global appsync retries counter
+// global retries counters for timeout problems
 static uint8_t appsyncandmsg_retries_counter = 0;
+static uint8_t dataoffline_retries_counter = 0;
 
 // global overwrite variables for vibrating when hit a specific BG if already in a snooze
 static bool specvalue_overwrite = false;
@@ -231,6 +232,10 @@ static const uint8_t AWESOMEBG_ANIMATE_SECS = 10;
 // App Sync / Message retries, for timeout / busy problems
 // Change to see if there is a temp or long term problem
 static const uint8_t APPSYNCANDMSG_RETRIES_MAX = 26;
+
+// HTML Request retries, for timeout / busy problems
+// Change to see if there is a temp or long term problem
+static const uint8_t DATAOFFLINE_RETRIES_MAX = 4;
 
 enum CgmKey {
 	CGM_ICON_KEY = 0x0,		// TUPLE_CSTRING, MAX 2 BYTES (10)
@@ -1097,6 +1102,7 @@ static void load_icon() {
   // Got an icon value, check data offline condition, clear vibrate flag if needed
   if ( (strcmp(current_bg_delta, "OFF") < 0) || (strcmp(current_bg_delta, "OFF") > 0) ) {
     DataOfflineAlert = false;
+    dataoffline_retries_counter = 0;
   }
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ARROW ICON, BEFORE CHECK SPEC VALUE BITMAP");
@@ -2030,10 +2036,10 @@ static void load_bg_delta() {
 	// check bluetooth connection
 	bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-    if (!bluetooth_connected_cgm) {
+	if (!bluetooth_connected_cgm) {
 	  // Bluetooth is out; BT message already set, so return
 	  return;
-    }
+	}
     
 	// check for CHECK PHONE condition, if true set message
 	if ((PhoneOffAlert) && (!TurnOff_CHECKPHONE_Msg)) {
@@ -2066,7 +2072,8 @@ static void load_bg_delta() {
 	}
 
   	// check for DATA OFFLINE condition, if true set message to fix condition	
-    if (strcmp(current_bg_delta, "OFF") == 0) {
+	if (strcmp(current_bg_delta, "OFF") == 0) {
+    if (dataoffline_retries_counter >= DATAOFFLINE_RETRIES_MAX) {
       strncpy(formatted_bg_delta, "DATA OFFLINE", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
@@ -2074,9 +2081,14 @@ static void load_bg_delta() {
         alert_handler_cgm(DATAOFFLINE_VIBE);
         DataOfflineAlert = true;
       } // DataOfflineAlert
-      // NOTE: DataOfflineAlert is cleared in load_icon because that means we got a good message again 
-      return;	
-    } // strcmp "OFF"
+      // NOTE: DataOfflineAlert is cleared in load_icon because that means we got a good message again
+      // NOTE: dataoffline_retries_counter is cleared in load_icon because that means we got a good message again
+    }  
+    else {
+      dataoffline_retries_counter++; 
+	  }  
+	  return;	
+  } // strcmp "OFF"
   
   	// check if LOADING.., if true set message
   	// put " " (space) in bg field so logo continues to show
