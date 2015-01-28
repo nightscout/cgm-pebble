@@ -93,7 +93,7 @@ function fetchCgmData() {
                     currentBattery = response[0].battery,
                     //currentBattery = "100",
                     // get name of T1D
-                    NameofT1DPerson = opts.t1name;
+                    NameofT1DPerson = "IOB:" + response[0].iob;
                     
                     //currentDirection = "NONE";
                   
