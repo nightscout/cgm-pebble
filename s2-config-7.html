@@ -1,0 +1,384 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Pebble Settings</title> 
+	<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1"> 
+	<link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.2/jquery.mobile-1.4.2.min.css" />
+	<script src="http://code.jquery.com/jquery-2.1.1.js"></script>
+	<script src="http://code.jquery.com/mobile/1.4.2/jquery.mobile-1.4.2.min.js"></script>
+
+  <style type='text/css'>
+    .hidden {display: none; }
+#divs div { display:none; }
+  </style>
+
+</head>
+<body>
+<div data-role="page" id="main">
+      <div data-role="header" class="jqm-header">
+        <h2>Pebble Settings</h2>
+        <tt class="hidden" id="status"></tt>
+        </div>
+<div data-role="fieldcontain">
+	
+	<div data-role="content">
+      <fieldset data-role="controlgroup" id="Radio_Options" data-type="horizontal" >
+		<legend><strong>Choose mg/dl or mmol:</strong></legend>
+						<input name="tipo_cadastro" type="radio" id="mgdl_form"" onchange="onchange_handler(this, 'mgdl');" onClick="clearFunction()" onmouseup="onchange_handler(this, 'mgdl');" value="mgdl_form"/>
+						<label for="mgdl_form">mg/dl</label>
+
+						<input type="radio" name="tipo_cadastro" id="mmol_form" value="mmol_form" !important" onClick="myFunction()" onchange="onchange_handler(this, 'mmol');" onmouseup="onchange_handler(this, //'mmol');">
+						<label for="mmol_form">mmol</label>
+	</fieldset>
+<script>
+function myFunction() {
+    document.getElementById("message").innerHTML = "ie:https://name.azurewebsites.net/pebble?units=mmol";
+}
+</script>
+<script>
+function clearFunction() {
+    document.getElementById("message").innerHTML = "ie:https://name.azurewebsites.net/pebble";
+}
+</script>
+			<div data-role="fieldcontain">
+			  <label for="endpoint"><strong>Enter Data Endpoint:</strong></label>
+			  <input type="text" name="endpoint" id="endpoint" />
+		  <div id="message">ie:https://name.azurewebsites.net/pebble</div></div>
+		  
+<div data-role="fieldcontain">
+				<label for="t1name">
+				<strong>Enter T1 Name:</strong>
+				
+		    <input type="text" name="t1name" id="t1name" />
+	
+</div>
+    <!-- If MG/DL Form is checked -->
+    <div id="mgdl_form_fields">
+          <legend><strong>Vibration Settings</strong></legend>
+          <label for="mglowbg">Select Low BG Level</label>
+	  <select name="mglowbg" id="mglowbg">
+                        <option value="60">60</option>        
+                        <option value="65">65</option> 
+	  					<option value="70">70</option>
+						<option value="75">75</option>
+						<option value="80">80</option>
+						<option value="90">90</option>
+						<option value="100">100</option>
+						<option value="110">110</option>
+						<option value="120">120</option>
+	  </select>
+           <label for="mghighbg">Select High BG Level</label>
+					<select name="mghighbg" id="mghighbg">
+						<option value="140">140</option>
+						<option value="150">150</option>
+						<option value="160">160</option>
+						<option value="170">170</option>
+						<option value="180">180</option>
+						<option value="190">190</option>
+						<option value="200">200</option>
+						<option value="210">210</option>
+						<option value="220">220</option>
+						<option value="230">230</option>
+						<option value="240">240</option>
+						<option value="250">250</option>
+						<option value="260">260</option>
+						<option value="270">270</option>
+						<option value="280">280</option>
+						<option value="290">290</option>
+						<option value="300">300</option>
+					</select> 
+                    
+                  </div>  
+           
+    <!-- If MMOL Form is checked -->
+    <div id="mmol_form_fields" style="display: none;">
+          <legend><Strong>Vibration Settings</strong></legend>
+          <label for="mmlowbg">Select Low BG Level</label>
+					<select name="mmlowbg" id="mmlowbg">
+						<option value="33">3.3</option>
+                        <option value="36">3.6</option>
+                        <option value="40">4.0</option>
+						<option value="45">4.5</option>
+						<option value="50">5.0</option>
+						<option value="55">5.5</option>
+                        <option value="60">6.0</option>
+						<option value="65">6.5</option>
+					</select>
+           <label for="mmhighbg">Select High BG Level</label>
+					<select name="mmhighbg" id="mmhighbg">
+						<option value="80">8.0</option>
+						<option value="85">8.5</option>
+						<option value="90">9.0</option>
+						<option value="95">9.5</option>
+						<option value="100">10.0</option>
+						<option value="105">10.5</option>
+						<option value="110">11.0</option>
+						<option value="115">11.5</option>
+						<option value="120">12.0</option>
+						<option value="125">12.5</option>
+						<option value="130">13.0</option>
+						<option value="135">13.5</option>
+						<option value="140">14.0</option>
+						<option value="145">14.5</option>
+						<option value="150">15.0</option>
+						<option value="155">15.5</option>
+					</select> 
+    </div> 
+    <div>
+     <label for="lowsnooze">Select Low Snooze Minutes</label>
+					<select name="lowsnooze" id="lowsnooze">
+						<option value="5">5</option>
+						<option value="10">10</option>
+						<option value="15">15</option>
+						<option value="20">20</option>
+						<option value="25">25</option>
+						<option value="30">30</option>
+						<option value="35">35</option>
+						<option value="40">40</option>
+						<option value="45">45</option>
+						<option value="50">50</option>
+						<option value="55">55</option>
+						<option value="60">60</option>
+					</select> 
+                    
+                    <label for="highsnooze">Select High Snooze Minutes</label>
+					<select name="highsnooze" id="highsnooze">
+						<option value="5">5</option>
+						<option value="10">10</option>
+						<option value="15">15</option>
+						<option value="20">20</option>
+						<option value="25">25</option>
+						<option value="30">30</option>
+						<option value="35">35</option>
+						<option value="40">40</option>
+						<option value="45">45</option>
+						<option value="50">50</option>
+						<option value="55">55</option>
+						<option value="60">60</option>
+                        <option value="70">70</option>
+                        <option value="80">80</option>
+                        <option value="90">90</option>
+                        <option value="100">100</option>
+                        <option value="110">110</option>
+                        <option value="120">120</option>
+					</select>
+					<label for="lowvibe">Select Low Vibration level</label>
+					<select name="lowvibe" id="lowvibe">
+						<option value="3">High</option>
+						<option value="2">Medium</option>
+						<option value="1">Low</option>
+						<option value="0">None</option>
+					</select>
+					<label for="highvibe">Select High Vibration level</label>
+					<select name="highvibe" id="highvibe">
+						<option value="3">High</option>
+						<option value="2">Medium</option>
+						<option value="1">Low</option>
+						<option value="0">None</option>
+					</select>
+					<label for="vibepattern">Select Vibration Pattern</label>
+					<select name="vibepattern" id="vibepattern">
+						<option value="2">Long</option>
+						<option value="1">Short</option>
+						<option value="0">None</option>
+					</select>
+					<label for="rawvibrate">Vibrate on RAW in Special Values (e.g. ???)</label>
+					<select name="rawvibrate" id="rawvibrate">
+						<option value="1">Yes</option>
+						<option value="0">No</option>
+					</select>
+        <p>
+		<div data-role="fieldcontain">
+	  <fieldset data-role="controlgroup" id="Radio_Options" data-type="horizontal">
+      <legend><strong>Choose 12 or 24 hour:</strong></legend>
+        <label>
+          <input name="TimeRadio" type="radio" required id="12" value="12">
+          12 Hour</label>
+        <label>
+          <input type="radio" name="TimeRadio" value="24" id="24">
+          24 Hour</label>
+		  </fieldset>
+		  </div>
+  </div>
+	<div class="ui-grid-solo">
+		<div class="ui-block-a"><button type="submit" data-theme="a" id="b-default">Default Settings</div>
+	</div>
+
+    <div class="ui-body ui-body-b">
+				<fieldset class="ui-grid-a">
+					<div class="ui-block-a"><button type="submit" data-theme="d" id="b-cancel">Cancel</button></div>
+					<div class="ui-block-b"><button type="submit" data-theme="a" id="b-submit">Submit</button></div>
+				</fieldset>
+			</div>
+		</div>
+    </div>
+  <script type='text/javascript'>
+$(window).load(function(){
+if (console && console.log && console.log.call) {
+      } else {
+        window.console = { log: function ( ) {
+            $('#status').text([ ].slice.call(arguments).join(' '));
+          }
+        };
+      }
+
+      $('#status').text('initializing');
+      function saveOptions() {
+        $('#status').text('prepping save');
+		var checkradio = null;
+		var lowbg = null;
+		var highbg = null;
+		if ($('input[name=tipo_cadastro]:checked').val() == 'mgdl_form'){
+			lowbg = 'mglowbg';
+			highbg = 'mghighbg';
+		} else {
+			lowbg = 'mmlowbg';
+			highbg = 'mmhighbg';
+		}
+        var options = {
+			'endpoint': $("#endpoint").val(),
+			't1name' : $("#t1name").val(),
+			'radio' : $('input[name=tipo_cadastro]:checked').val(),
+			'lowbg' : $("#" + lowbg + " option:selected").val(),
+			'highbg' : $("#" + highbg + " option:selected").val(),
+			'lowsnooze' : $("#lowsnooze option:selected").val(),
+			'highsnooze' : $("#highsnooze option:selected").val(),
+			'lowvibe' : $("#lowvibe option:selected").val(),
+			'highvibe' : $("#highvibe option:selected").val(),
+			'vibepattern' : $("#vibepattern option:selected").val(),
+			'timeformat' :	$('input[name=TimeRadio]:checked').val(),
+			'rawvibrate' : $("#rawvibrate option:selected").val()
+			
+        }
+        try {
+          if (window.localStorage && window.localStorage.setItem) {
+            window.localStorage.setItem('cgmOpts', JSON.stringify(options));
+          } else {
+            window.localStorage.cgmOpts =  JSON.stringify(options);
+          }
+        } catch (e) {
+          console.log('err', e);
+          options.error = e;
+        }
+        $('#status').text(['prepped', JSON.stringify(options)].join(' '));
+        return options;
+      }
+	  function loadDefaults() {
+		var _raw = null;
+        var opts = { };
+		_raw = window.localStorage && window.localStorage.cgmOpts
+            ? window.localStorage.cgmOpts : null;
+        opts = (_raw && _raw.length && _raw.length > 5 ? JSON.parse(_raw) : { });
+		$("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
+		$("#t1name").val(opts && opts.t1name ? opts.t1name : '');
+		$("input[value='mmol_form']").attr("checked",false).checkboxradio("refresh");
+		$("input[value='mgdl_form']").attr("checked",true).checkboxradio("refresh");
+		document.getElementById('mgdl_form_fields').style.display = 'block';
+		document.getElementById('mmol_form_fields').style.display = 'none';
+		$("#mglowbg").val('80').selectmenu("refresh");
+		$("#mmlowbg").val('45').selectmenu("refresh");
+		$("#mghighbg").val('180').selectmenu("refresh");
+		$("#mmhighbg").val('100').selectmenu("refresh");
+		$("#lowsnooze").val('15').selectmenu("refresh");
+		$("#highsnooze").val('30').selectmenu("refresh");
+		$("#lowvibe").val('3').selectmenu("refresh");
+		$("#highvibe").val('3').selectmenu("refresh");
+		$("#vibepattern").val('2').selectmenu("refresh");
+		$("#rawvibrate").val('1').selectmenu("refresh");
+		$("input[value='12']").attr("checked",true).checkboxradio("refresh");
+		$("input[value='24']").attr("checked",false).checkboxradio("refresh");
+	  }
+      
+      function getOptions() {
+      	$('#status').text('fetching from localStorage');
+        var _raw = null;
+        var opts = { };
+        
+		if(window.localStorage.cgmOpts){
+			_raw = window.localStorage && window.localStorage.cgmOpts
+				? window.localStorage.cgmOpts : null;
+			opts = (_raw && _raw.length && _raw.length > 5 ? JSON.parse(_raw) : { });
+			$('#status').text(['has opts', JSON.stringify(opts)].join(' '));
+			console.log("opts", JSON.stringify(opts));
+			$("#endpoint").val(opts && opts.endpoint ? opts.endpoint : '');
+			$("#t1name").val(opts && opts.t1name ? opts.t1name : '');
+			if (opts.radio == 'mgdl_form'){
+				$("input[value='" + opts.radio + "']").attr("checked",true).checkboxradio("refresh");
+				document.getElementById('mgdl_form_fields').style.display = 'block';
+				document.getElementById('mmol_form_fields').style.display = 'none';
+				$("#mglowbg").val(opts.lowbg).selectmenu("refresh");
+				$("#mghighbg").val(opts.highbg).selectmenu("refresh");
+			} else {
+				$("input[value='mgdl_form']").attr("checked",false).checkboxradio("refresh");
+				document.getElementById('mmol_form_fields').style.display = 'block';
+				document.getElementById('mgdl_form_fields').style.display = 'none';
+				$("input[value='" + opts.radio + "']").attr("checked",true).checkboxradio("refresh");
+				$("#mmlowbg").val(opts.lowbg).selectmenu("refresh");
+				$("#mmhighbg").val(opts.highbg).selectmenu("refresh");
+			}
+			$("#lowsnooze").val(opts.lowsnooze).selectmenu("refresh");
+			$("#highsnooze").val(opts.highsnooze).selectmenu("refresh");
+			$("#lowvibe").val(opts.lowvibe).selectmenu("refresh");
+			$("#highvibe").val(opts.highvibe).selectmenu("refresh");
+			$("#vibepattern").val(opts.vibepattern).selectmenu("refresh");
+			$("#rawvibrate").val(opts.rawvibrate).selectmenu("refresh");
+			$("input[value='" + opts.timeformat + "']").attr("checked",true).checkboxradio("refresh");
+        }else{
+			console.log("no data");
+        	$('#status').text('no data');
+			loadDefaults();
+        }
+        
+	}
+
+      $().ready(function() {
+        if (window.location.hash.indexOf("debug") > -1) {
+          $('#status').removeClass('hidden');
+        }
+        $('#status').text('ready');
+        $('#status').text('setting up events');
+		//localStorage.clear();
+		
+
+        $("#b-cancel").click(function() {
+          console.log("Cancel");
+          $('#status').text('canceling');
+          document.location = "pebblejs://close";
+        });
+
+        $("#b-submit").click(function() {
+          console.log("Submit");
+          $('#status').text('submitting');
+
+          var location = "pebblejs://close#" + encodeURIComponent(JSON.stringify(saveOptions()));
+          console.log("Warping to: " + location);
+          $('#status').text('closing');
+          document.location = location;
+          // console.log('saved', window.localStorage.cgmOpts);
+        });
+		
+		$("#b-default").click(function() {
+			console.log("Default");
+			localStorage.clear();
+			loadDefaults();
+		});
+      });
+      $('#main').bind('pageinit', getOptions());
+});
+function onchange_handler(obj, id) {
+    var other_id = (id == 'mgdl')? 'mmol' : 'mgdl';
+    if(obj.checked) {
+        document.getElementById(id + '_form_fields').style.display = 'block';
+        document.getElementById(other_id + '_form_fields').style.display = 'none';
+    } else {
+        document.getElementById(id + '_form_fields').style.display = 'none';
+        document.getElementById(other_id + '_form_fields').style.display = 'block';
+    }
+}
+
+</script>
+</body>
+</html>
