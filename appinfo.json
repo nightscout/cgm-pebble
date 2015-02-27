@@ -1,9 +1,12 @@
 {
     "appKeys": {
         "bg": 1,
+        "clrw": 8,
         "dlta": 4,
         "icon": 0,
         "name": 6,
+        "noiz": 10,
+        "rwuf": 9,
         "tapp": 3,
         "tcgm": 2,
         "ubat": 5,
@@ -18,154 +21,8 @@
     "resources": {
         "media": [
             {
-                "file": "images/up.png",
-                "name": "IMAGE_UP",
-                "type": "png"
-            },
-            {
-                "file": "images/upup.png",
-                "name": "IMAGE_UPUP",
-                "type": "png"
-            },
-            {
-                "file": "images/up45.png",
-                "name": "IMAGE_UP45",
-                "type": "png"
-            },
-            {
-                "file": "images/flat.png",
-                "name": "IMAGE_FLAT",
-                "type": "png"
-            },
-            {
-                "file": "images/down.png",
-                "name": "IMAGE_DOWN",
-                "type": "png"
-            },
-            {
-                "file": "images/downdown.png",
-                "name": "IMAGE_DOWNDOWN",
-                "type": "png"
-            },
-            {
-                "file": "images/down45.png",
-                "name": "IMAGE_DOWN45",
-                "type": "png"
-            },
-            {
-                "file": "images/none.png",
-                "name": "IMAGE_NONE",
-                "type": "png"
-            },
-            {
-                "file": "images/club100.png",
-                "name": "IMAGE_CLUB100",
-                "type": "png"
-            },
-            {
-                "file": "images/club55.png",
-                "name": "IMAGE_CLUB55",
-                "type": "png"
-            },
-            {
-                "file": "images/logo.png",
-                "name": "IMAGE_LOGO",
-                "type": "png"
-            },
-            {
-                "file": "images/menuicon.png",
-                "menuIcon": true,
-                "name": "IMAGE_MENU_ICON",
-                "type": "png"
-            },
-            {
-                "file": "images/brokenantenna.png",
-                "name": "IMAGE_BROKEN_ANTENNA",
-                "type": "png"
-            },
-            {
-                "file": "images/blooddrop.png",
-                "name": "IMAGE_BLOOD_DROP",
-                "type": "png"
-            },
-            {
-                "file": "images/stoplight.png",
-                "name": "IMAGE_STOP_LIGHT",
-                "type": "png"
-            },
-            {
-                "file": "images/hourglass.png",
-                "name": "IMAGE_HOURGLASS",
-                "type": "png"
-            },
-            {
-                "file": "images/questionmarks.png",
-                "name": "IMAGE_QUESTION_MARKS",
-                "type": "png"
-            },
-            {
-                "file": "images/battfull.png",
-                "name": "IMAGE_BATTFULL",
-                "type": "png"
-            },
-            {
-                "file": "images/batt90.png",
-                "name": "IMAGE_BATT90",
-                "type": "png"
-            },
-            {
-                "file": "images/batt80.png",
-                "name": "IMAGE_BATT80",
-                "type": "png"
-            },
-            {
-                "file": "images/batt70.png",
-                "name": "IMAGE_BATT70",
-                "type": "png"
-            },
-            {
-                "file": "images/batt60.png",
-                "name": "IMAGE_BATT60",
-                "type": "png"
-            },
-            {
-                "file": "images/batt50.png",
-                "name": "IMAGE_BATT50",
-                "type": "png"
-            },
-            {
-                "file": "images/batt40.png",
-                "name": "IMAGE_BATT40",
-                "type": "png"
-            },
-            {
-                "file": "images/batt30.png",
-                "name": "IMAGE_BATT30",
-                "type": "png"
-            },
-            {
-                "file": "images/batt20.png",
-                "name": "IMAGE_BATT20",
-                "type": "png"
-            },
-            {
-                "file": "images/phoneon.png",
-                "name": "IMAGE_PHONEON",
-                "type": "png"
-            },
-            {
-                "file": "images/batt10.png",
-                "name": "IMAGE_BATT10",
-                "type": "png"
-            },
-            {
-                "file": "images/phoneoff.png",
-                "name": "IMAGE_PHONEOFF",
-                "type": "png"
-            },
-            {
-                "file": "images/battempty.png",
-                "name": "IMAGE_BATTEMPTY",
+                "file": "images/rcvroff.png",
+                "name": "IMAGE_RCVROFF",
                 "type": "png"
             },
             {
@@ -174,18 +31,94 @@
                 "type": "png"
             },
             {
-                "file": "images/battnone.png",
-                "name": "IMAGE_BATTNONE",
+                "file": "images/questionmarks.png",
+                "name": "IMAGE_QUESTION_MARKS",
                 "type": "png"
             },
             {
-                "file": "images/rcvroff.png",
-                "name": "IMAGE_RCVROFF",
+                "file": "images/hourglass.png",
+                "name": "IMAGE_HOURGLASS",
                 "type": "png"
             },
             {
-                "file": "images/err.png",
-                "name": "IMAGE_ERR",
+                "file": "images/stoplight.png",
+                "name": "IMAGE_STOP_LIGHT",
+                "type": "png"
+            },
+            {
+                "file": "images/blooddrop.png",
+                "name": "IMAGE_BLOOD_DROP",
+                "type": "png"
+            },
+            {
+                "file": "images/brokenantenna.png",
+                "name": "IMAGE_BROKEN_ANTENNA",
+                "type": "png"
+            },
+            {
+                "file": "images/logo.png",
+                "name": "IMAGE_LOGO",
+                "type": "png"
+            },
+            {
+                "file": "images/specvaluenone.png",
+                "name": "IMAGE_SPECVALUE_NONE",
+                "type": "png"
+            },
+            {
+                "file": "images/rcvrnone.png",
+                "name": "IMAGE_RCVRNONE",
+                "type": "png"
+            },
+            {
+                "file": "images/down45.png",
+                "name": "IMAGE_DOWN45",
+                "type": "png"
+            },
+            {
+                "file": "images/downdown.png",
+                "name": "IMAGE_DOWNDOWN",
+                "type": "png"
+            },
+            {
+                "file": "images/down.png",
+                "name": "IMAGE_DOWN",
+                "type": "png"
+            },
+            {
+                "file": "images/flat.png",
+                "name": "IMAGE_FLAT",
+                "type": "png"
+            },
+            {
+                "file": "images/up45.png",
+                "name": "IMAGE_UP45",
+                "type": "png"
+            },
+            {
+                "file": "images/upup.png",
+                "name": "IMAGE_UPUP",
+                "type": "png"
+            },
+            {
+                "file": "images/up.png",
+                "name": "IMAGE_UP",
+                "type": "png"
+            },
+            {
+                "file": "images/club55.png",
+                "name": "IMAGE_CLUB55",
+                "type": "png"
+            },
+            {
+                "file": "images/club100.png",
+                "name": "IMAGE_CLUB100",
+                "type": "png"
+            },
+            {
+                "file": "images/menuicon.png",
+                "menuIcon": true,
+                "name": "IMAGE_MENU_ICON",
                 "type": "png"
             }
         ]
@@ -193,7 +126,7 @@
     "shortName": "Nightscout",
     "uuid": "4bfa0b46-b9fa-4e1a-b2ba-a2ba7168f897",
     "versionCode": 12,
-    "versionLabel": "6.4",
+    "versionLabel": "7.0",
     "watchapp": {
         "watchface": true
     }
