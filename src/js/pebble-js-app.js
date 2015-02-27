@@ -4,7 +4,7 @@ function fetchCgmData() {
     //console.log ("START fetchCgmData");
                 
     // declare local variables for message data
-    var response, message;
+    var response, responsebgs, responsecals, message;
 
     //get options from configuration window
     var opts = [ ].slice.call(arguments).pop( );
@@ -22,7 +22,10 @@ function fetchCgmData() {
           dlta: "NOEP",
           ubat: " ",
           name: " ",
-          vals: " "
+          vals: " ",
+          clrw: " ",
+          rwuf: " ",
+          noiz: 0
         };
         
         console.log("NO ENDPOINT JS message", JSON.stringify(message));
@@ -52,30 +55,32 @@ function fetchCgmData() {
               
                 // Load response   
                 response = JSON.parse(req.responseText);
-                response = response.bgs;
+                responsebgs = response.bgs;
+                responsecals = response.cals;
                 
                 // check response data
-                if (response && response.length > 0) {
+                if (responsebgs && responsebgs.length > 0) {
 
                     // response data is good; send log with response 
                     // console.log('got response', JSON.stringify(response));
 
                     // initialize message data
-
+                  
                     // get direction arrow and BG
-                    var currentDirection = response[0].direction,
-                    values= " ",
+                    var currentDirection = responsebgs[0].direction,
+                    values = " ",
                     currentIcon = "10",
-                    currentBG = response[0].sgv,
-                    //currentBG = "130",
-                    //typeBG = opts.radio,
+                    currentBG = responsebgs[0].sgv,
+                    //currentBG = "100",
+                    currentConvBG = currentBG,
+                    specialValue = false,    
 
                     // get timezone offset
                     timezoneDate = new Date(),
                     timezoneOffset = timezoneDate.getTimezoneOffset(),
                         
                     // get CGM time delta and format
-                    readingTime = new Date(response[0].datetime).getTime(),
+                    readingTime = new Date(responsebgs[0].datetime).getTime(),
                     //readingTime = null,
                     formatReadTime = Math.floor( (readingTime / 1000) - (timezoneOffset * 60) ),
 
@@ -85,18 +90,58 @@ function fetchCgmData() {
                     formatAppTime = Math.floor( (appTime / 1000) - (timezoneOffset * 60) ),   
                     
                     // get BG delta and format
-                    currentBGDelta = response[0].bgdelta,
+                    currentBGDelta = responsebgs[0].bgdelta,
                     //currentBGDelta = -8,
                     formatBGDelta = " ",
 
                     // get battery level
-                    currentBattery = response[0].battery,
+                    currentBattery = responsebgs[0].battery,
                     //currentBattery = "100",
-                    // get name of T1D
-                    NameofT1DPerson = opts.t1name;
-                    
-                    //currentDirection = "NONE";
+ 
+                   // get NameofT1DPerson and IOB
+                    NameofT1DPerson = opts.t1name,
+					currentIOB = responsebgs[0].iob,
+ 
+                    // sensor fields
+                    currentCalcRaw = 0,
+                    //currentCalcRaw = 100000,
+                    formatCalcRaw = " ",
+                    currentRawFilt = responsebgs[0].filtered,
+                    formatRawFilt = " ",
+                    currentRawUnfilt = responsebgs[0].unfiltered,
+                    formatRawUnfilt = " ",
+                    currentNoise = responsebgs[0].noise,
+                    currentIntercept = "undefined",
+                    currentSlope = "undefined",
+                    currentScale = "undefined",
+                    currentRatio = 0;
+  
+                    // get name of T1D; if iob (case insensitive), use IOB
+                    if ( (NameofT1DPerson.toUpperCase() === "IOB") && 
+					     ((typeof currentIOB != "undefined") && (currentIOB != "null")) ) {
+                      NameofT1DPerson = "IOB:" + currentIOB;
+                    }
+                    else {
+                      NameofT1DPerson = opts.t1name;
+                    }
+  
+                    if (responsecals && responsecals.length > 0) {
+                      currentIntercept = responsecals[0].intercept;
+                      currentSlope = responsecals[0].slope;
+                      currentScale = responsecals[0].scale;
+                    }
                   
+                    //currentDirection = "NONE";
+
+                    // set some specific flags needed for later
+                    if (opts.radio == "mgdl_form") { 
+                      if (currentBG < 30) { specialValue = true; }
+                    }
+                    else {
+                      if (currentBG < 1.7) { specialValue = true; }
+                      currentConvBG = (Math.round(currentBG * 18.018).toFixed(0));                                                                   
+                    }
+              
                     // convert arrow to a number string; sending number string to save memory
                     // putting NOT COMPUTABLE first because that's most common and can get out fastest
                     switch (currentDirection) {
@@ -115,17 +160,60 @@ function fetchCgmData() {
 					
                     // if no battery being sent yet, then send nothing to watch
                     // console.log("Battery Value: " + currentBattery);
-                    if (typeof currentBattery == "undefined") {
+                    if ( (typeof currentBattery == "undefined") || (currentBattery == "null") ) {
                       currentBattery = " ";  
                     }
                   
                     // assign bg delta string
                     formatBGDelta = ((currentBGDelta > 0 ? '+' : '') + currentBGDelta);
+
+                    //console.log("Current Unfiltered: " + currentRawUnfilt);                  
+                    //console.log("Current Intercept: " + currentIntercept);
+                    //console.log("Special Value Flag: " + specialValue);
+                    //console.log("Current BG: " + currentBG);
                   
+                    // assign calculated raw value if we can
+                    if ( (typeof currentIntercept != "undefined") && (currentIntercept != "null") ){
+                        if (specialValue) {
+                          // don't use ratio adjustment
+                          currentCalcRaw = (currentScale * (currentRawUnfilt - currentIntercept) / currentSlope);
+                          //console.log("Special Value Calculated Raw: " + currentCalcRaw);
+                        } 
+                        else {
+                          currentRatio = (currentScale * (currentRawFilt - currentIntercept) / currentSlope / currentConvBG);
+                          currentCalcRaw = (currentScale * (currentRawUnfilt - currentIntercept) / currentSlope / currentRatio);
+                          //console.log("Current Ratio: " + currentRatio);
+                          //console.log("Normal BG Calculated Raw: " + currentCalcRaw);
+                        }          
+                    } // if currentIntercept                
+
+                    // assign raw sensor values if they exist
+                    if ( (typeof currentRawUnfilt != "undefined") && (currentRawUnfilt != "null") ) {
+                      if (opts.radio == "mgdl_form") { 
+                        formatRawFilt = ((Math.round(currentRawFilt / 1000)).toFixed(0));
+                        formatRawUnfilt = ((Math.round(currentRawUnfilt / 1000)).toFixed(0));
+                        formatCalcRaw = ((Math.round(currentCalcRaw)).toFixed(0));
+                        //console.log("Format Unfiltered: " + formatRawUnfilt);
+                      } 
+                      else {
+                        formatRawFilt = ((Math.round(((currentRawFilt/1000)*0.0555) * 10) / 10).toFixed(1));
+                        formatRawUnfilt = ((Math.round(((currentRawUnfilt/1000)*0.0555) * 10) / 10).toFixed(1));
+                        formatCalcRaw = ((Math.round(currentCalcRaw)*0.0555).toFixed(1));
+                        //console.log("Format Unfiltered: " + formatRawUnfilt);
+                      }
+                    } // if currentRawUnfilt 
+                  
+                    //console.log("Calculated Raw To Be Sent: " + formatCalcRaw);
+                  
+                    // assign blank noise if it doesn't exist
+                    if ( (typeof currentNoise == "undefined") || (currentNoise == "null") ) {
+                      currentNoise = 0;  
+                    }
+                    
                     if (opts.radio == "mgdl_form") {
                       values = "0";  //mgdl selected
                     } else {
-                      values = "1"; //mmol selected                      
+                      values = "1"; //mmol selected
                     }
                     values += "," + opts.lowbg;  //Low BG Level
                     values += "," + opts.highbg; //High BG Level                      
@@ -139,9 +227,16 @@ function fetchCgmData() {
                     } else {
                       values += ",1";  //Time Format 24 Hour  
                     }
+					// Vibrate on raw value in special value; Yes = 1; No = 0;
+					if ( (currentCalcRaw !== 0) && (opts.rawvibrate == "1") ) {
+                      values += ",1";  // Vibrate on raw value when in special values  
+                    } else {
+                      values += ",0";  // Do not vibrate on raw value when in special values                        
+                    }
                     
                     //console.log("Current Value: " + values);
-                      
+					//console.log("Current rawvibrate: " + opts.rawvibrate);
+					//console.log("Current currentCalcRaw: " + currentCalcRaw);
                   
                     // debug logs; uncomment when need to debug something
  
@@ -163,7 +258,10 @@ function fetchCgmData() {
                       dlta: formatBGDelta,
                       ubat: currentBattery,
                       name: NameofT1DPerson,
-                      vals: values
+                      vals: values,
+                      clrw: formatCalcRaw,
+                      rwuf: formatRawUnfilt,
+                      noiz: currentNoise
                     };
                     
                     // send message data to log and to watch
@@ -193,7 +291,7 @@ function fetchCgmData() {
       };          
       console.log("DATA OFFLINE JS message", JSON.stringify(message));
       MessageQueue.sendAppMessage(message);
-    }, 45000 ); // timeout in ms; set at 45 seconds; can not go beyond 59 seconds      
+    }, 59000 ); // timeout in ms; set at 45 seconds; can not go beyond 59 seconds      
 } // end fetchCgmData
 
 // message queue-ing to pace calls from C function on watch
@@ -348,7 +446,7 @@ Pebble.addEventListener("appmessage",
 
 Pebble.addEventListener("showConfiguration", function(e) {
                         console.log("Showing Configuration", JSON.stringify(e));
-                        Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-6.html');
+                        Pebble.openURL('http://nightscout.github.io/cgm-pebble/s1-config-7.html');
                         });
 
 Pebble.addEventListener("webviewclosed", function(e) {
