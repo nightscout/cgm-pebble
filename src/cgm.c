@@ -1513,7 +1513,7 @@ static void load_bg() {
   // DO NOT GO OVER 24 CHARACTERS, INCLUDING SPACES OR YOU WILL CRASH
   // YOU HAVE BEEN WARNED
 	char happymsg_buffer111[26] = "EVERYTHING IS AWESOME\0";
-	char happymsg_buffer123[26] = "ABC EASY AS... D*CAN*BE\0";
+	char happymsg_buffer123[26] = "EASY AS CAN BE\0";
 	char happymsg_buffer130[26] = "DON'T WORRY BE:)HAPPY\0";
 	char happymsg_buffer65[26] = "STAYIN ALIVE AH,HA,HA,HA\0";
 	char happymsg_buffer200[26] = "SHAKE*IT*OFF  SHAKE IT!\0";
