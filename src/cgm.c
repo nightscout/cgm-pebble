@@ -221,7 +221,7 @@ uint8_t HardCodeNoVibrations = 100;
 // This is for people who want old ones too
 // Use for a custom load
 uint8_t HardCodeNoAnimations = 100;
-uint8_t HardCodeAllAnimations = 111;
+uint8_t HardCodeAllAnimations = 100;
 
 // Control Vibrations for Config File
 // IF YOU WANT NO VIBRATIONS, SET TO 111 (true)
@@ -233,7 +233,7 @@ uint8_t TurnOffStrongVibrations = 100;
 // If you want to turn off vibrations for calculated raw, set to 111 (true)
 uint8_t TurnOffVibrationsCalcRaw = 100;
 // If you want to see unfiltered raw, set to 111 (true)
-uint8_t TurnOnUnfilteredRaw = 111;
+uint8_t TurnOnUnfilteredRaw = 100;
 
 // ** END OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
 
