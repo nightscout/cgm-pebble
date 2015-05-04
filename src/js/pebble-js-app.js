@@ -71,9 +71,11 @@ function fetchCgmData() {
                     values = " ",
                     currentIcon = "10",
                     currentBG = responsebgs[0].sgv,
-                    //currentBG = "100",
+                    //currentBG = "65",
                     currentConvBG = currentBG,
-                    specialValue = false,    
+                    rawCalcOffset = 5,
+                    specialValue = false,
+                    calibrationValue = false,
 
                     // get timezone offset
                     timezoneDate = new Date(),
@@ -100,7 +102,7 @@ function fetchCgmData() {
  
                    // get NameofT1DPerson and IOB
                     NameofT1DPerson = opts.t1name,
-					currentIOB = responsebgs[0].iob,
+                    currentIOB = responsebgs[0].iob,
  
                     // sensor fields
                     currentCalcRaw = 0,
@@ -118,7 +120,7 @@ function fetchCgmData() {
   
                     // get name of T1D; if iob (case insensitive), use IOB
                     if ( (NameofT1DPerson.toUpperCase() === "IOB") && 
-					     ((typeof currentIOB != "undefined") && (currentIOB != "null")) ) {
+                    ((typeof currentIOB != "undefined") && (currentIOB !== null)) ) {
                       NameofT1DPerson = "IOB:" + currentIOB;
                     }
                     else {
@@ -135,10 +137,12 @@ function fetchCgmData() {
 
                     // set some specific flags needed for later
                     if (opts.radio == "mgdl_form") { 
-                      if (currentBG < 30) { specialValue = true; }
+                      if ( (currentBG < 40) || (currentBG > 400) ) { specialValue = true; }
+                      if (currentBG == 5) { calibrationValue = true; }
                     }
                     else {
-                      if (currentBG < 1.7) { specialValue = true; }
+                      if ( (currentBG < 2.3) || (currentBG > 22.2) ) { specialValue = true; }
+                      if (currentBG == 0.3) { calibrationValue = true; }
                       currentConvBG = (Math.round(currentBG * 18.018).toFixed(0));                                                                   
                     }
               
@@ -160,7 +164,7 @@ function fetchCgmData() {
 					
                     // if no battery being sent yet, then send nothing to watch
                     // console.log("Battery Value: " + currentBattery);
-                    if ( (typeof currentBattery == "undefined") || (currentBattery == "null") ) {
+                    if ( (typeof currentBattery == "undefined") || (currentBattery === null) ) {
                       currentBattery = " ";  
                     }
                   
@@ -173,32 +177,54 @@ function fetchCgmData() {
                     //console.log("Current BG: " + currentBG);
                   
                     // assign calculated raw value if we can
-                    if ( (typeof currentIntercept != "undefined") && (currentIntercept != "null") ){
+                    if ( (typeof currentIntercept != "undefined") && (currentIntercept !== null) ){
                         if (specialValue) {
                           // don't use ratio adjustment
-                          currentCalcRaw = (currentScale * (currentRawUnfilt - currentIntercept) / currentSlope);
+                          currentCalcRaw = ((currentScale * (currentRawUnfilt - currentIntercept) / currentSlope)*1 - rawCalcOffset*1);
                           //console.log("Special Value Calculated Raw: " + currentCalcRaw);
                         } 
                         else {
-                          currentRatio = (currentScale * (currentRawFilt - currentIntercept) / currentSlope / currentConvBG);
-                          currentCalcRaw = (currentScale * (currentRawUnfilt - currentIntercept) / currentSlope / currentRatio);
+                          currentRatio = (currentScale * (currentRawFilt - currentIntercept) / currentSlope / (currentConvBG*1 + rawCalcOffset*1));
+                          currentCalcRaw = ((currentScale * (currentRawUnfilt - currentIntercept) / currentSlope / currentRatio)*1 - rawCalcOffset*1);
+                          //console.log("Current Converted BG: " + currentConvBG);
                           //console.log("Current Ratio: " + currentRatio);
                           //console.log("Normal BG Calculated Raw: " + currentCalcRaw);
                         }          
-                    } // if currentIntercept                
+                    } // if currentIntercept                  
 
                     // assign raw sensor values if they exist
-                    if ( (typeof currentRawUnfilt != "undefined") && (currentRawUnfilt != "null") ) {
+                    if ( (typeof currentRawUnfilt != "undefined") && (currentRawUnfilt !== null) ) {
+                      
+                      // zero out any invalid values; defined anything not between 0 and 900
+                      if ( (currentRawFilt < 0) || (currentRawFilt > 900000) ) { currentRawFilt = "??"; }
+                      if ( (currentRawUnfilt < 0) || (currentRawUnfilt > 900000) ) { currentRawUnfilt = "??"; }
+                      
+                      // set 0, LO and HI in calculated raw
+                      if ( (currentCalcRaw >= 0) && (currentCalcRaw < 30) ) { formatCalcRaw = "LO"; }
+                      if ( (currentCalcRaw > 500) && (currentCalcRaw <= 900) ) { formatCalcRaw = "HI"; }
+                      if ( (currentCalcRaw < 0 ) || (currentCalcRaw > 900) ) { formatCalcRaw = "??"; }
+                      
+                      // check for compression warning
+                      if ( ((currentCalcRaw < (currentRawFilt/1000)) && (!calibrationValue)) && (currentRawFilt !== 0) ){
+                        var compressionSlope = 0;
+                        compressionSlope = (((currentRawFilt/1000) - currentCalcRaw)/(currentRawFilt/1000));
+                        //console.log("compression slope: " + compressionSlope);
+                        if (compressionSlope > 0.7) {
+                          // set COMPRESSION? message
+                          formatBGDelta = "PRSS";
+                        } // if compressionSlope
+                      } // if check for compression condition
+                      
                       if (opts.radio == "mgdl_form") { 
                         formatRawFilt = ((Math.round(currentRawFilt / 1000)).toFixed(0));
                         formatRawUnfilt = ((Math.round(currentRawUnfilt / 1000)).toFixed(0));
-                        formatCalcRaw = ((Math.round(currentCalcRaw)).toFixed(0));
+                        if ( (formatCalcRaw != "LO") && (formatCalcRaw != "HI") ) { formatCalcRaw = ((Math.round(currentCalcRaw)).toFixed(0)); }
                         //console.log("Format Unfiltered: " + formatRawUnfilt);
                       } 
                       else {
                         formatRawFilt = ((Math.round(((currentRawFilt/1000)*0.0555) * 10) / 10).toFixed(1));
                         formatRawUnfilt = ((Math.round(((currentRawUnfilt/1000)*0.0555) * 10) / 10).toFixed(1));
-                        formatCalcRaw = ((Math.round(currentCalcRaw)*0.0555).toFixed(1));
+                        if ( (formatCalcRaw != "LO") && (formatCalcRaw != "HI") ) { formatCalcRaw = ((Math.round(currentCalcRaw)*0.0555).toFixed(1)); }
                         //console.log("Format Unfiltered: " + formatRawUnfilt);
                       }
                     } // if currentRawUnfilt 
@@ -206,7 +232,7 @@ function fetchCgmData() {
                     //console.log("Calculated Raw To Be Sent: " + formatCalcRaw);
                   
                     // assign blank noise if it doesn't exist
-                    if ( (typeof currentNoise == "undefined") || (currentNoise == "null") ) {
+                    if ( (typeof currentNoise == "undefined") || (currentNoise === null) ) {
                       currentNoise = 0;  
                     }
                     
@@ -227,16 +253,16 @@ function fetchCgmData() {
                     } else {
                       values += ",1";  //Time Format 24 Hour  
                     }
-					// Vibrate on raw value in special value; Yes = 1; No = 0;
-					if ( (currentCalcRaw !== 0) && (opts.rawvibrate == "1") ) {
+                    // Vibrate on raw value in special value; Yes = 1; No = 0;
+                    if ( (currentCalcRaw !== 0) && (opts.rawvibrate == "1") ) {
                       values += ",1";  // Vibrate on raw value when in special values  
                     } else {
                       values += ",0";  // Do not vibrate on raw value when in special values                        
                     }
                     
                     //console.log("Current Value: " + values);
-					//console.log("Current rawvibrate: " + opts.rawvibrate);
-					//console.log("Current currentCalcRaw: " + currentCalcRaw);
+                    //console.log("Current rawvibrate: " + opts.rawvibrate);
+                    //console.log("Current currentCalcRaw: " + currentCalcRaw);
                   
                     // debug logs; uncomment when need to debug something
  

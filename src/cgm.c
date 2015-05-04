@@ -1,18 +1,11 @@
 #include "pebble.h"
 #include "stddef.h"
 #include "string.h"
-
-// Global constants
-#define NO_NOISE 0
-#define CLEAN_NOISE 1
-#define LIGHT_NOISE 2
-#define MEDIUM_NOISE 3
-#define HEAVY_NOISE 4
-#define WARMUP_NOISE 5
-#define OTHER_NOISE 6
   
 // global window variables
 // ANYTHING THAT IS CALLED BY PEBBLE API HAS TO BE NOT STATIC
+// PEBBLE BLUETOOTH API FLAGS ARE BOOL FLAGS
+// ALL OTHER FLAGS ARE DECLARED AS UINT8_T; FALSE = 100; TRUE = 111
 
 Window *window_cgm = NULL;
 
@@ -52,6 +45,7 @@ static char date_app_text[] = "Wed 13 ";
 
 // variables for AppSync
 AppSync sync_cgm;
+uint8_t AppSyncErrAlert = 100;
 // CGM message is 110 bytes
 // Pebble needs additional 62 Bytes?!? Pad with additional 60 bytes
 static uint8_t sync_buffer_cgm[212];
@@ -70,62 +64,55 @@ bool bluetooth_connected_cgm = true;
 char current_icon[2] = {0};
 char last_bg[6] = {0};
 char last_battlevel[4] = {0};
-char battlevel_percent[6] = {0};
+
 uint32_t current_cgm_time = 0;
-char formatted_cgm_timeago[10] = {0};
-char cgm_label_buffer[6] = {0};	
+uint32_t stored_cgm_time = 0;
+uint32_t current_cgm_timeago = 0;
+uint8_t init_loading_cgm_timeago = 111;
+uint8_t ClearedOutage = 100;
+
 uint32_t current_app_time = 0;
 char current_bg_delta[10] = {0};
-char delta_label_buffer[14] = {0};
-char formatted_bg_delta[14] = {0};
 char last_calc_raw[6] = {0};
 char last_raw_unfilt[6] = {0};
 uint8_t current_noise_value = 0;
-char formatted_noise[8] = {0};
 char last_calc_raw1[6] = {0};
 char last_calc_raw2[6] = {0};
 char last_calc_raw3[6] = {0};
-char formatted_battlevel[10] = {0};
-
 int current_bg = 0;
 int current_calc_raw = 0;
 int current_calc_raw1 = 0;
-bool currentBG_isMMOL = false;
+uint8_t currentBG_isMMOL = 100;
 int converted_bgDelta = 0;
 char current_values[25] = {0};
-bool HaveCalcRaw = false;
+uint8_t HaveCalcRaw = 100;
 
 // global BG snooze timer
 static uint8_t lastAlertTime = 0;
 
 // global special value alert
-static bool specvalue_alert = false;
+static uint8_t specvalue_alert = 100;
+
+// global overwrite variables for vibrating when hit a specific BG if already in a snooze
+static uint8_t specvalue_overwrite = 100;
+static uint8_t hypolow_overwrite = 100;
+static uint8_t biglow_overwrite = 100;
+static uint8_t midlow_overwrite = 100;
+static uint8_t low_overwrite = 100;
+static uint8_t high_overwrite = 100;
+static uint8_t midhigh_overwrite = 100;
+static uint8_t bighigh_overwrite = 100;
 
 // global retries counters for timeout problems
 static uint8_t appsyncandmsg_retries_counter = 0;
 static uint8_t dataoffline_retries_counter = 0;
 
-// global overwrite variables for vibrating when hit a specific BG if already in a snooze
-static bool specvalue_overwrite = false;
-static bool hypolow_overwrite = false;
-static bool biglow_overwrite = false;
-static bool midlow_overwrite = false;
-static bool low_overwrite = false;
-static bool high_overwrite = false;
-static bool midhigh_overwrite = false;
-static bool bighigh_overwrite = false;
-
 // global variables for vibrating in special conditions
-static bool DoubleDownAlert = false;
-static bool AppSyncErrAlert = false;
-static bool AppMsgInDropAlert = false;
-static bool AppMsgOutFailAlert = false;
-static bool BluetoothAlert = false;
-static bool BT_timer_pop = false;
-static bool CGMOffAlert = false;
-static bool PhoneOffAlert = false;
-static bool LowBatteryAlert = false;
-static bool DataOfflineAlert = false;
+static uint8_t BluetoothAlert = 100;
+static uint8_t BT_timer_pop = 100;
+static uint8_t DataOfflineAlert = 100;
+static uint8_t CGMOffAlert = 100;
+static uint8_t PhoneOffAlert = 100;
 
 // global constants for time durations; seconds
 static const uint8_t MINUTEAGO = 60;
@@ -140,8 +127,6 @@ static const uint8_t TIME_TEXTBUFF_SIZE = 6;
 static const uint8_t DATE_TEXTBUFF_SIZE = 8;
 static const uint8_t LABEL_BUFFER_SIZE = 6;
 static const uint8_t TIMEAGO_BUFFER_SIZE = 10;
-static const uint8_t HAPPYMSG_BUFFER_SIZE = 30;
-static const uint8_t BG_BUFFER_SIZE = 6;
 static const uint8_t BATTLEVEL_FORMAT_SIZE = 12;
 
 // ** START OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
@@ -156,8 +141,8 @@ static const uint8_t BATTLEVEL_FORMAT_SIZE = 12;
 // DO NOT USE NEGATIVE NUMBERS OR DECIMAL POINTS OR ANYTHING OTHER THAN A NUMBER
 
 // BG Ranges, MG/DL
-static const uint16_t SPECVALUE_BG_MGDL = 20;
-static const uint16_t SHOWLOW_BG_MGDL = 40;
+uint16_t SPECVALUE_BG_MGDL = 20;
+uint16_t SHOWLOW_BG_MGDL = 40;
 uint16_t HYPOLOW_BG_MGDL = 55;
 uint16_t BIGLOW_BG_MGDL = 60;
 uint16_t MIDLOW_BG_MGDL = 70;
@@ -166,15 +151,15 @@ uint16_t LOW_BG_MGDL = 80;
 uint16_t HIGH_BG_MGDL = 180;
 uint16_t MIDHIGH_BG_MGDL = 240;
 uint16_t BIGHIGH_BG_MGDL = 300;
-static const uint16_t SHOWHIGH_BG_MGDL = 400;
+uint16_t SHOWHIGH_BG_MGDL = 400;
 
 // BG Ranges, MMOL
 // VALUES ARE IN INT, NOT FLOATING POINT, LAST DIGIT IS DECIMAL
 // FOR EXAMPLE : SPECVALUE IS 1.1, BIGHIGH IS 16.6
 // ALWAYS USE ONE AND ONLY ONE DECIMAL POINT FOR LAST DIGIT
 // GOOD : 5.0, 12.2 // BAD : 7 , 14.44
-static const uint16_t SPECVALUE_BG_MMOL = 11;
-static const uint16_t SHOWLOW_BG_MMOL = 23;
+uint16_t SPECVALUE_BG_MMOL = 11;
+uint16_t SHOWLOW_BG_MMOL = 23;
 uint16_t HYPOLOW_BG_MMOL = 30;
 uint16_t BIGLOW_BG_MMOL = 33;
 uint16_t MIDLOW_BG_MMOL = 39;
@@ -183,73 +168,72 @@ uint16_t LOW_BG_MMOL = 44;
 uint16_t HIGH_BG_MMOL = 100;
 uint16_t MIDHIGH_BG_MMOL = 133;
 uint16_t BIGHIGH_BG_MMOL = 166;
-static const uint16_t SHOWHIGH_BG_MMOL = 222;
+uint16_t SHOWHIGH_BG_MMOL = 222;
 
 // BG Snooze Times, in Minutes; controls when vibrate again
 // RANGE 0-240
-static const uint8_t SPECVALUE_SNZ_MIN = 30;
-static const uint8_t HYPOLOW_SNZ_MIN = 5;
-static const uint8_t BIGLOW_SNZ_MIN = 5;
-static const uint8_t MIDLOW_SNZ_MIN = 10;
+uint8_t SPECVALUE_SNZ_MIN = 30;
+uint8_t HYPOLOW_SNZ_MIN = 5;
+uint8_t BIGLOW_SNZ_MIN = 5;
+uint8_t MIDLOW_SNZ_MIN = 10;
 uint8_t LOW_SNZ_MIN = 15;
 uint8_t HIGH_SNZ_MIN = 30;
-static const uint8_t MIDHIGH_SNZ_MIN = 30;
-static const uint8_t BIGHIGH_SNZ_MIN = 30;
+uint8_t MIDHIGH_SNZ_MIN = 30;
+uint8_t BIGHIGH_SNZ_MIN = 30;
   
 // Vibration Levels; 0 = NONE; 1 = LOW; 2 = MEDIUM; 3 = HIGH
 // IF YOU DO NOT WANT A SPECIFIC VIBRATION, SET TO 0
-static const uint8_t SPECVALUE_VIBE = 2;
-static const uint8_t HYPOLOWBG_VIBE = 3;
-static const uint8_t BIGLOWBG_VIBE = 3;
+uint8_t SPECVALUE_VIBE = 2;
+uint8_t HYPOLOWBG_VIBE = 3;
+uint8_t BIGLOWBG_VIBE = 3;
 uint8_t LOWBG_VIBE = 3;
 uint8_t HIGHBG_VIBE = 2;
-static const uint8_t BIGHIGHBG_VIBE = 2;
-static const uint8_t DOUBLEDOWN_VIBE = 3;
-static const uint8_t APPSYNC_ERR_VIBE = 1;
-static const uint8_t APPMSG_INDROP_VIBE = 1;
-static const uint8_t APPMSG_OUTFAIL_VIBE = 1;
-static const uint8_t BTOUT_VIBE = 1;
-static const uint8_t CGMOUT_VIBE = 1;
-static const uint8_t PHONEOUT_VIBE = 1;
-static const uint8_t LOWBATTERY_VIBE = 1;
-static const uint8_t DATAOFFLINE_VIBE = 1;
+uint8_t BIGHIGHBG_VIBE = 2;
+uint8_t DOUBLEDOWN_VIBE = 3;
+uint8_t APPSYNC_ERR_VIBE = 1;
+uint8_t BTOUT_VIBE = 1;
+uint8_t CGMOUT_VIBE = 1;
+uint8_t PHONEOUT_VIBE = 1;
+uint8_t LOWBATTERY_VIBE = 1;
+uint8_t DATAOFFLINE_VIBE = 1;
 
 // Icon Cross Out & Vibrate Once Wait Times, in Minutes
 // RANGE 0-240
 // IF YOU WANT TO WAIT LONGER TO GET CONDITION, INCREASE NUMBER
 static const uint8_t CGMOUT_WAIT_MIN = 15;
-static const uint8_t PHONEOUT_WAIT_MIN = 10;
+static const uint8_t CGMOUT_INIT_WAIT_MIN = 6;
+static const uint8_t PHONEOUT_WAIT_MIN = 5;
 
 // Control Messages
-// IF YOU DO NOT WANT A SPECIFIC MESSAGE, SET TO true
-static const bool TurnOff_NOBLUETOOTH_Msg = false;
-static const bool TurnOff_CHECKCGM_Msg = false;
-static const bool TurnOff_CHECKPHONE_Msg = false;
+// IF YOU DO NOT WANT A SPECIFIC MESSAGE, SET TO 111 (true)
+static const uint8_t TurnOff_NOBLUETOOTH_Msg = 100;
+static const uint8_t TurnOff_CHECKCGM_Msg = 100;
+static const uint8_t TurnOff_CHECKPHONE_Msg = 100;
 
 // Control Vibrations
-// SPECIAL BOOL TO HARD CODE VIBRATIONS OFF; If you want no vibrations, SET TO true
+// SPECIAL FLAG TO HARD CODE VIBRATIONS OFF; If you want no vibrations, SET TO 111 (true)
 // Use for Sleep Face or anyone else for a custom load
-bool HardCodeNoVibrations = false;
+uint8_t HardCodeNoVibrations = 100;
 
 // Control Animations
-// SPECIAL BOOL TO HARD CODE ANIMATIONS OFF; If you want no animations, SET TO true
-// SPECIAL BOOL TO HARD CODE ANIMATIONS ALL ON; If you want all animations, SET TO true
+// SPECIAL FLAG TO HARD CODE ANIMATIONS OFF; If you want no animations, SET TO 111 (true)
+// SPECIAL FLAG TO HARD CODE ANIMATIONS ALL ON; If you want all animations, SET TO 111 (true)
 // This is for people who want old ones too
 // Use for a custom load
-bool HardCodeNoAnimations = false;
-bool HardCodeAllAnimations = false;
+uint8_t HardCodeNoAnimations = 100;
+uint8_t HardCodeAllAnimations = 100;
 
 // Control Vibrations for Config File
-// IF YOU WANT NO VIBRATIONS, SET TO true
-bool TurnOffAllVibrations = false;
-// IF YOU WANT LESS INTENSE VIBRATIONS, SET TO true
-bool TurnOffStrongVibrations = false;
+// IF YOU WANT NO VIBRATIONS, SET TO 111 (true)
+uint8_t TurnOffAllVibrations = 100;
+// IF YOU WANT LESS INTENSE VIBRATIONS, SET TO 111 (true)
+uint8_t TurnOffStrongVibrations = 100;
 
 // Control Raw data
-// If you want to turn off vibrations for calculated raw, set to true
-bool TurnOffVibrationsCalcRaw = false;
-// If you want to see unfiltered raw, set to true
-bool TurnOnUnfilteredRaw = false;
+// If you want to turn off vibrations for calculated raw, set to 111 (true)
+uint8_t TurnOffVibrationsCalcRaw = 100;
+// If you want to see unfiltered raw, set to 111 (true)
+uint8_t TurnOnUnfilteredRaw = 100;
 
 // ** END OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
 
@@ -262,7 +246,7 @@ static const uint8_t BT_ALERT_WAIT_SECS = 45;
 
 // Message Timer & Animate Wait Times, in Seconds
 static const uint8_t WATCH_MSGSEND_SECS = 60;
-static const uint8_t LOADING_MSGSEND_SECS = 6;
+static const uint8_t LOADING_MSGSEND_SECS = 10;
 static const uint8_t PERFECTBG_ANIMATE_SECS = 10;
 static const uint8_t HAPPYMSG_ANIMATE_SECS = 10;
 
@@ -325,16 +309,6 @@ static const uint8_t TIMEAGO_ICONS[] = {
 static const uint8_t RCVRNONE_ICON_INDX = 0;
 static const uint8_t RCVRON_ICON_INDX = 1;
 static const uint8_t RCVROFF_ICON_INDX = 2;
-
-// ARRAY OF ICONS FOR PERFECT BG
-static const uint8_t PERFECTBG_ICONS[] = {
-	RESOURCE_ID_IMAGE_CLUB100,         //0
-	RESOURCE_ID_IMAGE_CLUB55           //1
-};
-
-// INDEX FOR ARRAY OF PERFECT BG ICONS
-static const uint8_t CLUB100_ICON_INDX = 0;
-static const uint8_t CLUB55_ICON_INDX = 1;
 
 static char *translate_app_error(AppMessageResult result) {
   switch (result) {
@@ -417,29 +391,6 @@ cont:
 	/* NOTREACHED */
 }
 
-int myAtoi(char *str) {
-
-	// VARIABLES
-    int res = 0; // Initialize result
- 
-	// CODE START
-	
-  //APP_LOG(APP_LOG_LEVEL_INFO, "MYATOI: ENTER CODE");
-  
-    // Iterate through all characters of input string and update result
-    for (int i = 0; str[i] != '\0'; ++i) {
-      
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "MYATOI, STRING IN: %s", &str[i] );
-      
-      if ( (str[i] >= ('0')) && (str[i] <= ('9')) ) {
-        res = res*10 + str[i] - '0';
-      }
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "MYATOI, FOR RESULT OUT: %i", res );
-    }
-    //APP_LOG(APP_LOG_LEVEL_DEBUG, "MYATOI, FINAL RESULT OUT: %i", res );
-    return res;
-} // end myAtoi
-
 int myBGAtoi(char *str) {
 
 	// VARIABLES
@@ -448,7 +399,7 @@ int myBGAtoi(char *str) {
 	// CODE START
  
     // initialize currentBG_isMMOL flag
-	currentBG_isMMOL = false;
+	currentBG_isMMOL = 100;
 	
 	//APP_LOG(APP_LOG_LEVEL_DEBUG, "myBGAtoi, START currentBG is MMOL: %i", currentBG_isMMOL );
 	
@@ -458,7 +409,7 @@ int myBGAtoi(char *str) {
 	  //APP_LOG(APP_LOG_LEVEL_DEBUG, "myBGAtoi, STRING IN: %s", &str[i] );
 	  
         if (str[i] == ('.')) {
-        currentBG_isMMOL = true;
+        currentBG_isMMOL = 111;
       }
       else if ( (str[i] >= ('0')) && (str[i] <= ('9')) ) {
         res = res*10 + str[i] - '0';
@@ -484,7 +435,7 @@ static void load_values(){
   } else {
     o = strtok(current_values,",");
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "mg or mm: %s", o);      
-    mgormm = myAtoi(o);
+    mgormm = atoi(o);
 
     while(o != NULL) {
       num_a_items++;
@@ -492,7 +443,7 @@ static void load_values(){
         case 2:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "lowbg: %s", o);
           if (mgormm == 0){
-            LOW_BG_MGDL = myAtoi(o);
+            LOW_BG_MGDL = atoi(o);
             if (LOW_BG_MGDL < 60) {
             	MIDLOW_BG_MGDL = 55;
             	BIGLOW_BG_MGDL = 50;
@@ -503,7 +454,7 @@ static void load_values(){
             	HYPOLOW_BG_MGDL = 50;
             }
           } else {
-            LOW_BG_MMOL = myAtoi(o);
+            LOW_BG_MMOL = atoi(o);
             if (LOW_BG_MMOL < 33) {
             	MIDLOW_BG_MMOL = 31;
             	BIGLOW_BG_MMOL = 28;
@@ -518,13 +469,13 @@ static void load_values(){
         case 3:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "highbg: %s", o);
           if (mgormm == 0){
-            HIGH_BG_MGDL = myAtoi(o);
+            HIGH_BG_MGDL = atoi(o);
             if (HIGH_BG_MGDL > 239) {
               MIDHIGH_BG_MGDL = 300;
               BIGHIGH_BG_MGDL = 350;
             }
           } else {
-            HIGH_BG_MMOL = myAtoi(o);
+            HIGH_BG_MMOL = atoi(o);
               if (HIGH_BG_MMOL > 132) {
                MIDHIGH_BG_MMOL = 166;
                BIGHIGH_BG_MMOL =  200;
@@ -533,43 +484,43 @@ static void load_values(){
           break;
         case 4:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "lowsnooze: %s", o);
-          LOW_SNZ_MIN = myAtoi(o);
+          LOW_SNZ_MIN = atoi(o);
           break;
         case 5:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "highsnooze: %s", o);      
-          HIGH_SNZ_MIN = myAtoi(o);
+          HIGH_SNZ_MIN = atoi(o);
           break;
         case 6:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "lowvibe: %s", o);
-          LOWBG_VIBE = myAtoi(o);
+          LOWBG_VIBE = atoi(o);
           break;
         case 7:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "highvibe: %s", o);
-          HIGHBG_VIBE = myAtoi(o);
+          HIGHBG_VIBE = atoi(o);
           break;
         case 8:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "vibepattern: %s", o);
-          vibes = myAtoi(o);
+          vibes = atoi(o);        
           if (vibes == 0){
-            TurnOffAllVibrations = true;
-            TurnOffStrongVibrations = true;
+            TurnOffAllVibrations = 111;
+            TurnOffStrongVibrations = 111;
           } else if (vibes == 1){
-            TurnOffAllVibrations = false;
-            TurnOffStrongVibrations = true; 
+            TurnOffAllVibrations = 100;
+            TurnOffStrongVibrations = 111; 
           } else if (vibes == 2){
-            TurnOffAllVibrations = false;
-            TurnOffStrongVibrations = false;
+            TurnOffAllVibrations = 100;
+            TurnOffStrongVibrations = 100;
           }
           break;
         case 9:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "timeformat: %s", o);
-          timeformat = myAtoi(o);
+          timeformat = atoi(o);
           break;
         case 10:
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "rawvibrate: %s", o);
-          rawvibrate = myAtoi(o);
-          if (rawvibrate == 0) { TurnOffVibrationsCalcRaw = true; }
-          else { TurnOffVibrationsCalcRaw = false; }
+          rawvibrate = atoi(o);
+          if (rawvibrate == 0) { TurnOffVibrationsCalcRaw = 111; }
+          else { TurnOffVibrationsCalcRaw = 100; }
           break;
       }
       o = strtok(NULL,",");
@@ -680,18 +631,10 @@ static void alert_handler_cgm(uint8_t alertValue) {
 	const uint8_t MEDALERT_LONG_SHORT = (17/2);
 	const uint8_t LOWALERT_BEEBUZZ_STRONG = 25;
 	const uint8_t LOWALERT_BEEBUZZ_SHORT = (25/2);
-	
-	// PAST PATTERNS
-	//const uint32_t hypo[] = { 3200,200,3200 };
-	//const uint32_t low[] = { 1000,100,2000 };
-	//const uint32_t hyper[] = { 50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150,50,150 };
-	//const uint32_t trend_high[] = { 200,200,1000,200,200,200,1000 };
-	//const uint32_t trend_low[] = { 2000,200,1000 };
-	//const uint32_t alert[] = { 500,200,1000 };
   
 	// CODE START
 	
-	if ( (TurnOffAllVibrations) || (HardCodeNoVibrations) ) {
+	if ( (TurnOffAllVibrations == 111) || (HardCodeNoVibrations == 111) ) {
       //turn off all vibrations is set, return out here
       return;
 	}
@@ -710,7 +653,7 @@ static void alert_handler_cgm(uint8_t alertValue) {
 			.durations = lowalert_beebuzz,
 			.num_segments = LOWALERT_BEEBUZZ_STRONG,
       };
-	  if (TurnOffStrongVibrations) { low_alert_pat.num_segments = LOWALERT_BEEBUZZ_SHORT; };
+	  if (TurnOffStrongVibrations == 111) { low_alert_pat.num_segments = LOWALERT_BEEBUZZ_SHORT; };
       vibes_enqueue_custom_pattern(low_alert_pat);
       break;
 
@@ -721,7 +664,7 @@ static void alert_handler_cgm(uint8_t alertValue) {
 			.durations = medalert_long,
 			.num_segments = MEDALERT_LONG_STRONG,
       };
-	  if (TurnOffStrongVibrations) { med_alert_pat.num_segments = MEDALERT_LONG_SHORT; };
+	  if (TurnOffStrongVibrations == 111) { med_alert_pat.num_segments = MEDALERT_LONG_SHORT; };
       vibes_enqueue_custom_pattern(med_alert_pat);
       break;
 
@@ -732,7 +675,7 @@ static void alert_handler_cgm(uint8_t alertValue) {
 			.durations = highalert_fast,
 			.num_segments = HIGHALERT_FAST_STRONG,
       };
-	  if (TurnOffStrongVibrations) { high_alert_pat.num_segments = HIGHALERT_FAST_SHORT; };
+	  if (TurnOffStrongVibrations == 111) { high_alert_pat.num_segments = HIGHALERT_FAST_SHORT; };
       vibes_enqueue_custom_pattern(high_alert_pat);
       break;
   
@@ -749,7 +692,7 @@ void handle_bluetooth_cgm(bool bt_connected) {
   {
 	
 	// Check BluetoothAlert for extended Bluetooth outage; if so, do nothing
-	if (BluetoothAlert) {
+	if (BluetoothAlert == 111) {
       //Already vibrated and set message; out
 	  return;
 	}
@@ -757,7 +700,7 @@ void handle_bluetooth_cgm(bool bt_connected) {
 	// Check to see if the BT_timer needs to be set; if BT_timer is not null we're still waiting
 	if (BT_timer == NULL) {
 	  // check to see if timer has popped
-	  if (!BT_timer_pop) {
+	  if (BT_timer_pop == 100) {
 	    //set timer
 	    BT_timer = app_timer_register((BT_ALERT_WAIT_SECS*MS_IN_A_SECOND), BT_timer_callback, NULL);
 		// have set timer; next time we come through we will see that the timer has popped
@@ -771,20 +714,21 @@ void handle_bluetooth_cgm(bool bt_connected) {
 	
 	// timer has popped
 	// Vibrate; BluetoothAlert takes over until Bluetooth connection comes back on
-	//APP_LOG(APP_LOG_LEVEL_INFO, "BT HANDLER: TIMER POP, NO BLUETOOTH");
+	//APP_LOG(APP_LOG_LEVEL_INFO, "BT HANDLER: TIMER POP, NO BLUETOOTH, VIBRATE");
     alert_handler_cgm(BTOUT_VIBE);
-    BluetoothAlert = true;
+    BluetoothAlert = 111;
 	
 	// Reset timer pop
-	BT_timer_pop = false;
+	BT_timer_pop = 100;
 	
 	//APP_LOG(APP_LOG_LEVEL_INFO, "NO BLUETOOTH");
-    if (!TurnOff_NOBLUETOOTH_Msg) {
+    if (TurnOff_NOBLUETOOTH_Msg == 100) {
 	  text_layer_set_text(message_layer, "NO BLUETOOTH");
 	}
     
     // erase cgm and app ago times
     text_layer_set_text(cgmtime_layer, "");
+    init_loading_cgm_timeago = 111;
     
 	// erase cgm icon
     create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);
@@ -794,10 +738,14 @@ void handle_bluetooth_cgm(bool bt_connected) {
   else {
 	// Bluetooth is on, reset BluetoothAlert
     //APP_LOG(APP_LOG_LEVEL_INFO, "HANDLE BT: BLUETOOTH ON");
-	BluetoothAlert = false;
+    if (BluetoothAlert == 111) { 
+      ClearedOutage = 111; 
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "BT HANDLER, SET CLEARED OUTAGE: %i ", ClearedOutage);
+    } 
+    BluetoothAlert = 100;
     if (BT_timer == NULL) {
       // no timer is set, so need to reset timer pop
-      BT_timer_pop = false;
+      BT_timer_pop = 100;
     }
   }
   
@@ -808,7 +756,7 @@ void BT_timer_callback(void *data) {
     //APP_LOG(APP_LOG_LEVEL_INFO, "BT TIMER CALLBACK: ENTER CODE");
 	
 	// reset timer pop and timer
-	BT_timer_pop = true;
+	BT_timer_pop = 111;
 	if (BT_timer != NULL) {
 	  BT_timer = NULL;
 	}
@@ -869,7 +817,7 @@ void sync_error_callback_cgm(DictionaryResult appsync_dict_error, AppMessageResu
   AppMessageResult appsync_err_openerr = APP_MSG_OK;
   AppMessageResult appsync_err_senderr = APP_MSG_OK;
 
-  bool bluetooth_connected_syncerror = true;
+  bool bluetooth_connected_syncerror = false;
   
   // CODE START
   
@@ -886,10 +834,9 @@ void sync_error_callback_cgm(DictionaryResult appsync_dict_error, AppMessageResu
   if (appsyncandmsg_retries_counter < APPSYNCANDMSG_RETRIES_MAX) {
   
     // APPSYNC ERROR debug logs
-    APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC ERROR");
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC MSG ERR CODE: %i RES: %s", appsync_error, translate_app_error(appsync_error));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC DICT ERR CODE: %i RES: %s", appsync_dict_error, translate_dict_error(appsync_dict_error));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
+    //APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPSYNC ERR, MSG: %i RES: %s DICT: %i RES: %s RETRIES: %i", 
+            appsync_error, translate_app_error(appsync_error), appsync_dict_error, translate_dict_error(appsync_dict_error), appsyncandmsg_retries_counter);
   
     // try to resend the message; open app message outbox
     appsync_err_openerr = app_message_outbox_begin(&iter); 
@@ -898,7 +845,11 @@ void sync_error_callback_cgm(DictionaryResult appsync_dict_error, AppMessageResu
       appsync_err_senderr = app_message_outbox_send();
       if (appsync_err_senderr == APP_MSG_OK) {
         // everything OK, reset AppSyncErrAlert so no vibrate
-        AppSyncErrAlert = false;
+        if (AppSyncErrAlert == 111) { 
+          ClearedOutage = 111; 
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "APPSYNC ERR, SET CLEARED OUTAGE: %i ", ClearedOutage);
+        } 
+        AppSyncErrAlert = 100;
         // sent message OK; return
 	      return;
       } // if appsync_err_senderr
@@ -907,22 +858,20 @@ void sync_error_callback_cgm(DictionaryResult appsync_dict_error, AppMessageResu
     
   // flag error
   if (appsyncandmsg_retries_counter > APPSYNCANDMSG_RETRIES_MAX) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC TOO MANY MESSAGES ERROR");
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC MSG ERR CODE: %i RES: %s", appsync_error, translate_app_error(appsync_error));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC DICT ERR CODE: %i RES: %s", appsync_dict_error, translate_dict_error(appsync_dict_error));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
+    //APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC TOO MANY MESSAGES ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPSYNC ERR, MSG: %i RES: %s DICT: %i RES: %s RETRIES: %i", 
+            appsync_error, translate_app_error(appsync_error), appsync_dict_error, translate_dict_error(appsync_dict_error), appsyncandmsg_retries_counter);
   }
   else {
-    APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC RESEND ERROR");
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC RESEND MSG OPEN ERR CODE: %i RES: %s", appsync_err_openerr, translate_app_error(appsync_err_openerr));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APP SYNC RESEND MSG SEND ERR CODE: %i RES: %s", appsync_err_senderr, translate_app_error(appsync_err_senderr));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "AppSyncErrAlert: %i  appsyncandmsg_retries_counter: %i", AppSyncErrAlert, appsyncandmsg_retries_counter);
+    //APP_LOG(APP_LOG_LEVEL_INFO, "APP SYNC RESEND ERROR");
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPSYNC RESEND ERR, OPEN: %i RES: %s SEND: %i RES: %s RETRIES: %i", 
+            appsync_err_openerr, translate_app_error(appsync_err_openerr), appsync_err_senderr, translate_app_error(appsync_err_senderr), appsyncandmsg_retries_counter);
     return;
   } 
  
   // check bluetooth again
   bluetooth_connected_syncerror = bluetooth_connection_service_peek();   
-  if (!bluetooth_connected_syncerror) {
+if (bluetooth_connected_syncerror == false) {
     // bluetooth is out, BT message already set; return out
     return;
   }
@@ -935,192 +884,42 @@ void sync_error_callback_cgm(DictionaryResult appsync_dict_error, AppMessageResu
   
   // erase cgm and app ago times
   text_layer_set_text(cgmtime_layer, "");
+  init_loading_cgm_timeago = 111;
     
   // erase cgm icon
   create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);
-    
 
   // check if need to vibrate
-  if (!AppSyncErrAlert) {
+  if (AppSyncErrAlert == 100) {
     //APP_LOG(APP_LOG_LEVEL_INFO, "APPSYNC ERROR: VIBRATE");
     alert_handler_cgm(APPSYNC_ERR_VIBE);
-	AppSyncErrAlert = true;
+    AppSyncErrAlert = 111;
   } 
   
 } // end sync_error_callback_cgm
 
 void inbox_dropped_handler_cgm(AppMessageResult appmsg_indrop_error, void *context) {
 	// incoming appmessage send back from Pebble app dropped; no data received
-	
-	// VARIABLES
-	DictionaryIterator *iter = NULL;
-	AppMessageResult appmsg_indrop_openerr = APP_MSG_OK;
-	AppMessageResult appmsg_indrop_senderr = APP_MSG_OK;
+  // have never seen handler get called, think because AppSync is always used
+  // just set log now to avoid crash, if see log then can go back to old handler
   
-  bool bluetooth_connected_inboxdrop = true;
-  
-	// CODE START
-
-	bluetooth_connected_inboxdrop = bluetooth_connection_service_peek();
-    
-  if (!bluetooth_connected_inboxdrop) {
-    // bluetooth is out, BT message already set; return out
-    return;
-  }
-  
-  // increment app sync retries counter
-  appsyncandmsg_retries_counter++;
-  
-  // if hit max counter, skip resend and flag user
-  if (appsyncandmsg_retries_counter < APPSYNCANDMSG_RETRIES_MAX) {
-  
-	  // APPMSG IN DROP debug logs
-	  APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR");
-	  APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP ERR CODE: %i RES: %s", appmsg_indrop_error, translate_app_error(appmsg_indrop_error));
-	  APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
-    
-    // try to resend the message; open app message outbox
-    appmsg_indrop_openerr = app_message_outbox_begin(&iter); 
-    if (appmsg_indrop_openerr == APP_MSG_OK) {
-      // could open app message outbox; send message
-      appmsg_indrop_senderr = app_message_outbox_send();
-      if (appmsg_indrop_senderr == APP_MSG_OK ) {
-        // everything OK, reset AppSyncErrAlert so no vibrate
-        AppMsgInDropAlert = false;
-        // sent message OK; return
-	      return;
-      } // if appmsg_indrop_senderr
-    } // if appmsg_indrop_openerr
-  } // if appsyncandmsg_retries_counter
-  
-  // check bluetooth again
-  bluetooth_connected_inboxdrop = bluetooth_connection_service_peek();
-    
-  if (!bluetooth_connected_inboxdrop) {
-    // bluetooth is out, BT message already set; return out
-    return;
-  }
-  
-  // flag error
-  if (appsyncandmsg_retries_counter > APPSYNCANDMSG_RETRIES_MAX) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP TOO MANY MESSAGES ERROR");
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP ERR CODE ERR CODE: %i RES: %s", appmsg_indrop_error, translate_app_error(appmsg_indrop_error));
-	  APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
-  }
-  else {
-    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP RESEND ERROR");
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP RESEND MSG OPEN ERR CODE: %i RES: %s", appmsg_indrop_openerr, translate_app_error(appmsg_indrop_openerr));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP RESEND MSG SEND ERR CODE: %i RES: %s", appmsg_indrop_senderr, translate_app_error(appmsg_indrop_senderr));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "AppMsgInDropAlert: %i  appsyncandmsg_retries_counter: %i", AppMsgInDropAlert, appsyncandmsg_retries_counter);
-    return;
-  } 
-
-  // set message to RESTART WATCH -> PHONE
-	text_layer_set_text(message_layer, "√APP/RESTRT");
-  
-  // reset appsync retries counter
-  appsyncandmsg_retries_counter = 0; 
-      
-	// erase cgm and app ago times
-	text_layer_set_text(cgmtime_layer, "");
-    
-	// erase cgm icon
-	create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);
-
-	// check if need to vibrate
-	if (!AppMsgInDropAlert) {
-    //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR: VIBRATE");
-    alert_handler_cgm(APPMSG_INDROP_VIBE);
-	  AppMsgInDropAlert = true;
-	} 
+	// APPMSG IN DROP debug logs
+	//APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR");
+	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP ERR, CODE: %i RES: %s", 
+          appmsg_indrop_error, translate_app_error(appmsg_indrop_error));
     
 } // end inbox_dropped_handler_cgm
 
 void outbox_failed_handler_cgm(DictionaryIterator *failed, AppMessageResult appmsg_outfail_error, void *context) {
 	// outgoing appmessage send failed to deliver to Pebble
+  // have never seen handler get called, think because AppSync is always used
+  // just set log now to avoid crash, if see log then can go back to old handler
 	
-	// VARIABLES
-	DictionaryIterator *iter = NULL;
-	AppMessageResult appmsg_outfail_openerr = APP_MSG_OK;
-	AppMessageResult appmsg_outfail_senderr = APP_MSG_OK;
-  
-  bool bluetooth_connected_outboxfail = true;
-  
-	// CODE START
-	
-	bluetooth_connected_outboxfail = bluetooth_connection_service_peek();
-    
-  if (!bluetooth_connected_outboxfail) {
-    // bluetooth is out, BT message already set; return out
-    return;
-  }
-  
-  // increment app sync and msg retries counter
-  appsyncandmsg_retries_counter++;
-  
-  // if hit max counter, skip resend and flag user
-  if (appsyncandmsg_retries_counter < APPSYNCANDMSG_RETRIES_MAX) {
-  
-	  // APPMSG OUT FAIL debug logs
-	  APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR");
-	  APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL ERR CODE: %i RES: %s", appmsg_outfail_error, translate_app_error(appmsg_outfail_error));
-	  APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
-    
-    // try to resend the message; open app message outbox
-    appmsg_outfail_openerr = app_message_outbox_begin(&iter);
-    if (appmsg_outfail_openerr == APP_MSG_OK) {
-      // could open app message outbox; send message
-      appmsg_outfail_senderr = app_message_outbox_send();
-      if (appmsg_outfail_senderr == APP_MSG_OK ) {
-        // everything OK, reset AppSyncErrAlert so no vibrate
-        AppMsgOutFailAlert = false;
-        // sent message OK; return
-	      return;
-      } // if appmsg_outfail_senderr
-    } // if appmsg_outfail_openerr
-  } // if appsyncandmsg_retries_counter
-  
-  // check bluetooth again
-  bluetooth_connected_outboxfail = bluetooth_connection_service_peek();
-    
-  if (!bluetooth_connected_outboxfail) {
-    // bluetooth is out, BT message already set; return out
-    return;
-  }
-  
-  // flag error
-  if (appsyncandmsg_retries_counter > APPSYNCANDMSG_RETRIES_MAX) {
-	  APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR");
-	  APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL ERR CODE: %i RES: %s", appmsg_outfail_error, translate_app_error(appmsg_outfail_error));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "appsyncandmsg_retries_counter: %i", appsyncandmsg_retries_counter);
-  }
-  else {
-    APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL RESEND ERROR");
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL RESEND MSG OPEN ERR CODE: %i RES: %s", appmsg_outfail_openerr, translate_app_error(appmsg_outfail_openerr));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL RESEND MSG SEND ERR CODE: %i RES: %s", appmsg_outfail_senderr, translate_app_error(appmsg_outfail_senderr));
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "AppMsgOutFailAlert: %i  appsyncandmsg_retries_counter: %i", AppMsgOutFailAlert, appsyncandmsg_retries_counter);
-    return;
-  } 
-
-  // set message to RESTART WATCH -> PHONE
-	text_layer_set_text(message_layer, "√APP/RESTRT");
-  
-  // reset appsync retries counter
-  appsyncandmsg_retries_counter = 0; 
-    
-	// erase cgm and app ago times
-	text_layer_set_text(cgmtime_layer, "");
-    
-	// erase cgm icon
-	create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);
-  
-	// check if need to vibrate
-	if (!AppMsgOutFailAlert) {
-	  //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR: VIBRATE");
-	  alert_handler_cgm(APPMSG_OUTFAIL_VIBE);
-	  AppMsgOutFailAlert = true;
-	} 
-  
+  // APPMSG OUT FAIL debug logs
+  //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR");
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL ERR, CODE: %i RES: %s", 
+          appmsg_outfail_error, translate_app_error(appmsg_outfail_error));
+ 
 } // end outbox_failed_handler_cgm
 
 static void load_icon() {
@@ -1163,53 +962,58 @@ static void load_icon() {
 	const uint8_t DOWN_ICON_INDX = 6;
 	const uint8_t DOWNDOWN_ICON_INDX = 7;
 	const uint8_t LOGO_ARROW_ICON_INDX = 8;
+  
+  // VARIABLES
+  static uint8_t DoubleDownAlert = 100;
+  
+  // CODE START
 	
   // Got an icon value, check data offline condition, clear vibrate flag if needed
   if ( (strcmp(current_bg_delta, "OFF") < 0) || (strcmp(current_bg_delta, "OFF") > 0) ) {
-    DataOfflineAlert = false;
+    DataOfflineAlert = 100;
     dataoffline_retries_counter = 0;
   }
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ARROW ICON, BEFORE CHECK SPEC VALUE BITMAP");
 	// check if special value set
-	if (specvalue_alert == false) {
+	if (specvalue_alert == 100) {
 	
 	  // no special value, set arrow
       // check for arrow direction, set proper arrow icon
 	  //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD ICON, CURRENT ICON: %s", current_icon);
       if ( (strcmp(current_icon, NO_ARROW) == 0) || (strcmp(current_icon, NOTCOMPUTE_ICON) == 0) || (strcmp(current_icon, OUTOFRANGE_ICON) == 0) ) {
 	    create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[NONE_ARROW_ICON_INDX]);
-	    DoubleDownAlert = false;
+	    DoubleDownAlert = 100;
       } 
       else if (strcmp(current_icon, DOUBLEUP_ARROW) == 0) {
 	    create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[UPUP_ICON_INDX]);
-	    DoubleDownAlert = false;
+	    DoubleDownAlert = 100;
       }
       else if (strcmp(current_icon, SINGLEUP_ARROW) == 0) {
 	    create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[UP_ICON_INDX]);
-	    DoubleDownAlert = false;
+	    DoubleDownAlert = 100;
       }
       else if (strcmp(current_icon, UP45_ARROW) == 0) {
         create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[UP45_ICON_INDX]);
-	    DoubleDownAlert = false;
+	    DoubleDownAlert = 100;
       }
       else if (strcmp(current_icon, FLAT_ARROW) == 0) {
         create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[FLAT_ICON_INDX]);
-	    DoubleDownAlert = false;
+	    DoubleDownAlert = 100;
       }
       else if (strcmp(current_icon, DOWN45_ARROW) == 0) {
 	    create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[DOWN45_ICON_INDX]);
-	    DoubleDownAlert = false;
+	    DoubleDownAlert = 100;
       }
       else if (strcmp(current_icon, SINGLEDOWN_ARROW) == 0) {
         create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[DOWN_ICON_INDX]);
-	    DoubleDownAlert = false;
+	    DoubleDownAlert = 100;
       }
       else if (strcmp(current_icon, DOUBLEDOWN_ARROW) == 0) {
-	    if (!DoubleDownAlert) {
+	    if (DoubleDownAlert == 100) {
 	      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ICON, ICON ARROW: DOUBLE DOWN");
 	      alert_handler_cgm(DOUBLEDOWN_VIBE);
-	      DoubleDownAlert = true;
+	      DoubleDownAlert = 111;
 	    }
 	    create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[DOWNDOWN_ICON_INDX]);
       } 
@@ -1227,12 +1031,12 @@ static void load_icon() {
 		  // unexpected, set logo icon
 	      create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[LOGO_ARROW_ICON_INDX]);
 	    }
-	    DoubleDownAlert = false;
+	    DoubleDownAlert = 100;
 	  }
-	} // if specvalue_alert == false
+	} // if specvalue_alert == 100
 	else { // this is just for log when need it
 	  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD ICON, SPEC VALUE ALERT IS TRUE, DONE");
-	} // else specvalue_alert == true
+	} // else specvalue_alert == 111
 	
 } // end load_icon
 
@@ -1244,6 +1048,21 @@ static void load_rig_battlevel();
 
 // ANIMATION CODE
 
+void destroy_perfectbg_animation(PropertyAnimation **perfectbg_animation) {
+  if (*perfectbg_animation == NULL) {
+    return;
+  }
+
+  if (animation_is_scheduled((Animation*) *perfectbg_animation)) {
+    animation_unschedule((Animation*) *perfectbg_animation);
+  }
+
+  if (perfectbg_animation != NULL) {
+    property_animation_destroy(*perfectbg_animation);
+  }
+  *perfectbg_animation = NULL;
+} // end destroy_perfectbg_animation
+
 // PERFECTBG ANIMATION
 void perfectbg_animation_started(Animation *animation, void *data) {
 
@@ -1251,7 +1070,7 @@ void perfectbg_animation_started(Animation *animation, void *data) {
   
 	// clear out BG and icon
   text_layer_set_text(bg_layer, " ");
-  text_layer_set_text(message_layer, "WHOO HOO!\0");
+  text_layer_set_text(message_layer, "FIST BUMP!\0");
   
 } // end perfectbg_animation_started
 
@@ -1264,38 +1083,35 @@ void perfectbg_animation_stopped(Animation *animation, bool finished, void *data
 	text_layer_set_text(bg_layer, last_bg);
 	load_icon();
   load_bg_delta();
+  destroy_perfectbg_animation(&perfectbg_animation);
   
 } // end perfectbg_animation_stopped
 
-void destroy_perfectbg_animation(PropertyAnimation **perfectbg_animation) {
-  if (*perfectbg_animation == NULL) {
-    return;
-  }
-
-  if (animation_is_scheduled((Animation*) *perfectbg_animation)) {
-    animation_unschedule((Animation*) *perfectbg_animation);
-  }
-
-  property_animation_destroy(*perfectbg_animation);
-  *perfectbg_animation = NULL;
-} // end destroy_perfectbg_animation
-
 void animate_perfectbg() {
 
+  // CONSTANTS
+  
+  // ARRAY OF ICONS FOR PERFECT BG
+  const uint8_t PERFECTBG_ICONS[] = {
+	  RESOURCE_ID_IMAGE_CLUB100,         //0
+	  RESOURCE_ID_IMAGE_CLUB55           //1
+  };
+  
+  // INDEX FOR ARRAY OF PERFECT BG ICONS
+  static const uint8_t CLUB100_ICON_INDX = 0;
+  static const uint8_t CLUB55_ICON_INDX = 1;
+  
 	// VARIABLES 
 	
+  Layer *animate_perfectbg_layer = NULL;
+  
 	// for animation
 	GRect from_perfectbg_rect = GRect(0,0,0,0);
 	GRect to_perfectbg_rect = GRect(0,0,0,0);
 
-  Layer *animate_perfectbg_layer = NULL;
-  
 	// CODE START
 
-	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE PERFECTBG");
-	// slide BG out to right
-	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE PERFECTBG, ANIMATE BG, SLIDE BG");
-  if (currentBG_isMMOL) { 
+ if (currentBG_isMMOL == 111) { 
     create_update_bitmap(&perfectbg_bitmap,perfectbg_layer,PERFECTBG_ICONS[CLUB55_ICON_INDX]);
   }
   else {
@@ -1322,6 +1138,21 @@ void animate_perfectbg() {
 
 } //end animate_perfectbg
 
+void destroy_happymsg_animation(PropertyAnimation **happymsg_animation) {
+  if (*happymsg_animation == NULL) {
+    return;
+  }
+
+  if (animation_is_scheduled((Animation*) *happymsg_animation)) {
+    animation_unschedule((Animation*) *happymsg_animation);
+  }
+
+  if (happymsg_animation != NULL) {
+    property_animation_destroy(*happymsg_animation);
+  }
+  *happymsg_animation = NULL;
+} // end destroy_happymsg_animation
+
 // happymsg ANIMATION
 void happymsg_animation_started(Animation *animation, void *data) {
 
@@ -1345,38 +1176,26 @@ void happymsg_animation_stopped(Animation *animation, bool finished, void *data)
   load_cgmtime();
   load_apptime();
   load_rig_battlevel();
+  destroy_happymsg_animation(&happymsg_animation);
   
 } // end happymsg_animation_stopped
 
-void destroy_happymsg_animation(PropertyAnimation **happymsg_animation) {
-  if (*happymsg_animation == NULL) {
-    return;
-  }
-
-  if (animation_is_scheduled((Animation*) *happymsg_animation)) {
-    animation_unschedule((Animation*) *happymsg_animation);
-  }
-
-  property_animation_destroy(*happymsg_animation);
-  *happymsg_animation = NULL;
-} // end destroy_happymsg_animation
-
 void animate_happymsg(char *happymsg_to_display) {
 
+  // CONSTANTS
+  const uint8_t HAPPYMSG_BUFFER_SIZE = 30;
+  
 	// VARIABLES 
-	
+  Layer *animate_happymsg_layer = NULL;
+  
 	// for animation
 	GRect from_happymsg_rect = GRect(0,0,0,0);
 	GRect to_happymsg_rect = GRect(0,0,0,0);
 
-	Layer *animate_happymsg_layer = NULL;
   static char animate_happymsg_buffer[30] = {0};
   
 	// CODE START
 
-	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE HAPPY MSG");
-	// slide BG out to right
-	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE HAPPY MSG, SLIDE BG");
   //APP_LOG(APP_LOG_LEVEL_DEBUG, "ANIMATE HAPPY MSG, STRING PASSED: %s", happymsg_to_display);
   strncpy(animate_happymsg_buffer, happymsg_to_display, HAPPYMSG_BUFFER_SIZE);
 	text_layer_set_text(happymsg_layer, animate_happymsg_buffer);
@@ -1402,11 +1221,64 @@ void animate_happymsg(char *happymsg_to_display) {
 
 } //end animate_happymsg
 
+void bg_vibrator (uint16_t BG_BOTTOM_INDX, uint16_t BG_TOP_INDX, uint8_t BG_SNOOZE, uint8_t *bg_overwrite, uint8_t BG_VIBE) {
+
+      // VARIABLES
+  
+      uint16_t conv_vibrator_bg = 180;
+
+      conv_vibrator_bg = current_bg;
+  
+      // adjust high bg for comparison, if needed
+      if ( ((currentBG_isMMOL == 111) && (current_bg >= HIGH_BG_MGDL))
+        || ((currentBG_isMMOL == 100) && (current_bg >= HIGH_BG_MMOL)) ) {
+        conv_vibrator_bg = current_bg + 1;
+      }
+  
+      // check BG and vibrate if needed
+      //APP_LOG(APP_LOG_LEVEL_INFO, "BG VIBRATOR, CHECK TO SEE IF WE NEED TO VIBRATE");
+      if ( ( ((conv_vibrator_bg > BG_BOTTOM_INDX) && (conv_vibrator_bg <= BG_TOP_INDX))
+          && ((lastAlertTime == 0) || (lastAlertTime > BG_SNOOZE)) )
+		    || ( ((conv_vibrator_bg > BG_BOTTOM_INDX) && (conv_vibrator_bg <= BG_TOP_INDX)) && (*bg_overwrite == 100) ) ) {
+      
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime SNOOZE VALUE IN: %i", lastAlertTime);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "bg_overwrite IN: %i", *bg_overwrite);
+     
+        // send alert and handle a bouncing connection
+        if ((lastAlertTime == 0) || (*bg_overwrite == 100)) { 
+        //APP_LOG(APP_LOG_LEVEL_INFO, "BG VIBRATOR: VIBRATE");
+          alert_handler_cgm(BG_VIBE);        
+          // don't know where we are coming from, so reset last alert time no matter what
+          // set to 1 to prevent bouncing connection
+          lastAlertTime = 1;
+         if (*bg_overwrite == 100) { *bg_overwrite = 111; }
+        }
+      
+        // if hit snooze, reset snooze counter; will alert next time around
+        if (lastAlertTime > BG_SNOOZE) { 
+          lastAlertTime = 0;
+          specvalue_overwrite = 100;
+          hypolow_overwrite = 100;
+          biglow_overwrite = 100;
+          midlow_overwrite = 100;
+          low_overwrite = 100;
+          midhigh_overwrite = 100;
+          bighigh_overwrite = 100;
+          //APP_LOG(APP_LOG_LEVEL_INFO, "BG VIBRATOR, OVERWRITE RESET");
+        }
+      
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "BG VIBRATOR, lastAlertTime SNOOZE VALUE OUT: %i", lastAlertTime);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "BG VIBRATOR, bg_overwrite OUT: %i", *bg_overwrite);
+      } 
+
+} // end bg_vibrator	  
+	  
 static void load_bg() {
     //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, FUNCTION START");
 	
 	// CONSTANTS
-
+  const uint8_t BG_BUFFER_SIZE = 6;
+  
 	// ARRAY OF BG CONSTANTS; MGDL
 	uint16_t BG_MGDL[] = {
 	  SPECVALUE_BG_MGDL,	//0
@@ -1502,9 +1374,9 @@ static void load_bg() {
 	const uint8_t HOURGLASS_VALUE_INDX = 5;
 	const uint8_t QUESTION_MARKS_VALUE_INDX = 6;
 	const uint8_t BAD_RF_VALUE_INDX = 7;
-  
+ 
 	// VARIABLES 
-	
+  
 	// pointers to be used to MGDL or MMOL values for parsing
 	uint16_t *bg_ptr = NULL;
 	uint8_t *specvalue_ptr = NULL;
@@ -1512,22 +1384,23 @@ static void load_bg() {
   // happy message; max message 24 characters
   // DO NOT GO OVER 24 CHARACTERS, INCLUDING SPACES OR YOU WILL CRASH
   // YOU HAVE BEEN WARNED
-	char happymsg_buffer111[26] = "EVERYTHING IS AWESOME\0";
-	char happymsg_buffer123[26] = "ABC EASY AS... D*CAN*BE\0";
-	char happymsg_buffer130[26] = "DON'T WORRY BE:)HAPPY\0";
-	char happymsg_buffer65[26] = "STAYIN ALIVE AH,HA,HA,HA\0";
-	char happymsg_buffer200[26] = "SHAKE*IT*OFF  SHAKE IT!\0";
-	char happymsg_buffer300[26] = "PREPARE 4 GLORY! SPARTA!\0";
+  char happymsg_buffer65[26] = "SUUGAR! YES PLZ FOR*MY*D\0";
+	char happymsg_buffer83[26] = "PEDAL TO THE MEDAL! CK83\0";
+	char happymsg_buffer143[26] = "YOUR PEBBLE LOVES U TOO\0";
+  char happymsg_buffer123[26] = "ABC EASY AS D*CAN*BE\0";
+	char happymsg_buffer116[26] = "VICTORY LANE! RYAN REED\0";
+	char happymsg_buffer222[26] = "UR BG'S MOVIN NO*LIE*LIE\0";
+  char happymsg_buffer321[26] = "BLAST OFF! HOUSTON?\0";
   
 	// CODE START
-	
+  
 	// if special value set, erase anything in the icon field
-	if (specvalue_alert == true) {
+	if (specvalue_alert == 111) {
 	  create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[NONE_SPECVALUE_ICON_INDX]);
 	}
 	
-	// set special value alert to false no matter what
-	specvalue_alert = false;
+	// set special value alert to zero no matter what
+	specvalue_alert = 100;
   
     // see if we're doing MGDL or MMOL; get currentBG_isMMOL value in myBGAtoi
 	  // convert BG value from string to int
@@ -1542,7 +1415,7 @@ static void load_bg() {
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "LAST BG: %s", last_bg);
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "CURRENT BG: %i", current_bg);
     
-    if (!currentBG_isMMOL) {
+  if (currentBG_isMMOL == 100) {
 	  bg_ptr = BG_MGDL;
 	  specvalue_ptr = SPECVALUE_MGDL;
 	}
@@ -1563,7 +1436,7 @@ static void load_bg() {
       if (!bluetooth_connected_cgm) {
 	    // Bluetooth is out; set BT message
 		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BG INIT: NO BT, SET NO BT MESSAGE");
-		if (!TurnOff_NOBLUETOOTH_Msg) {
+		if (TurnOff_NOBLUETOOTH_Msg == 100) {
 		  text_layer_set_text(message_layer, "NO BLUETOOTH");
 		} // if turnoff nobluetooth msg
       }// if !bluetooth connected
@@ -1573,7 +1446,7 @@ static void load_bg() {
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, UNEXP BG, CURRENT_BG: %d LAST_BG: %s ", current_bg, last_bg);
         text_layer_set_text(bg_layer, "ERR");
         create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[NONE_SPECVALUE_ICON_INDX]);
-        specvalue_alert = true;
+        specvalue_alert = 111;
       }
       
 	} // if current_bg <= 0
@@ -1587,26 +1460,26 @@ static void load_bg() {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET BROKEN ANTENNA");
 	    text_layer_set_text(bg_layer, "");
 	    create_update_bitmap(&specialvalue_bitmap,icon_layer, SPECIAL_VALUE_ICONS[BROKEN_ANTENNA_ICON_INDX]);
-	    specvalue_alert = true;
+	    specvalue_alert = 111;
 	  }
 	  else if (current_bg == specvalue_ptr[SENSOR_NOT_CALIBRATED_VALUE_INDX]) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET BLOOD DROP");
 	    text_layer_set_text(bg_layer, "");
 	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[BLOOD_DROP_ICON_INDX]);
-	    specvalue_alert = true;        
+	    specvalue_alert = 111;        
 	  }
 	  else if ((current_bg == specvalue_ptr[SENSOR_NOT_ACTIVE_VALUE_INDX]) || (current_bg == specvalue_ptr[MINIMAL_DEVIATION_VALUE_INDX]) 
 	        || (current_bg == specvalue_ptr[STOP_LIGHT_VALUE_INDX])) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET STOP LIGHT");
 	    text_layer_set_text(bg_layer, "");
 	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[STOP_LIGHT_ICON_INDX]);
-	    specvalue_alert = true;
+	    specvalue_alert = 111;
 	  }
 	  else if (current_bg == specvalue_ptr[HOURGLASS_VALUE_INDX]) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET HOUR GLASS");
 	    text_layer_set_text(bg_layer, "");
 	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[HOURGLASS_ICON_INDX]);
-	    specvalue_alert = true;
+	    specvalue_alert = 111;
 	  }
 	  else if (current_bg == specvalue_ptr[QUESTION_MARKS_VALUE_INDX]) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, CLEAR TEXT");
@@ -1614,18 +1487,18 @@ static void load_bg() {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, SET BITMAP");
 	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[QUESTION_MARKS_ICON_INDX]); 
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: SET QUESTION MARKS, DONE");
-	    specvalue_alert = true;
+	    specvalue_alert = 111;
 	  }
 	  else if (current_bg < bg_ptr[SPECVALUE_BG_INDX]) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, UNEXPECTED SPECIAL VALUE: SET LOGO ICON");
 	    text_layer_set_text(bg_layer, "");
 	    create_update_bitmap(&specialvalue_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
-	    specvalue_alert = true;
+	    specvalue_alert = 111;
 	  } // end special value checks
 		
       //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, AFTER CREATE SPEC VALUE BITMAP");
       
-	  if (specvalue_alert == false) {
+	  if (specvalue_alert == 100) {
 	    // we didn't find a special value, so set BG instead
 	    // arrow icon already set separately
 	    if (current_bg < bg_ptr[SHOWLOW_BG_INDX]) {
@@ -1641,8 +1514,8 @@ static void load_bg() {
 		  //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, SET TO BG: %s ", last_bg);
 		  text_layer_set_text(bg_layer, last_bg);
  
-      if (!HardCodeNoAnimations) {
-        if ( ((!currentBG_isMMOL) && (current_bg == 100)) || ((currentBG_isMMOL) && (current_bg == 55)) ) {
+      if (HardCodeNoAnimations == 100) {
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 100)) || ((currentBG_isMMOL == 111) && (current_bg == 55)) ) {
 		      // PERFECT BG CLUB, ANIMATE BG      
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE PERFECT BG");
 		      animate_perfectbg();
@@ -1650,43 +1523,49 @@ static void load_bg() {
 
         // EVERY TIME YOU DO A NEW MESSAGE, YOU HAVE TO ALLOCATE A NEW HAPPY MSG BUFFER AT THE TOP OF LOAD BG FUNCTION
         
-        if ((!currentBG_isMMOL) && (current_bg == 123)) {
+        if ((currentBG_isMMOL == 100) && (current_bg == 143)) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer123);
-        } // animate happy msg layer @ 123
+		      animate_happymsg(happymsg_buffer143);
+        } // animate happy msg layer @ 143
       
-        if ((currentBG_isMMOL) && (current_bg == 65)) {
+        if ((currentBG_isMMOL == 100) && (current_bg == 116)) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer65);
-        } // animate happy msg layer @ 65
+		      animate_happymsg(happymsg_buffer116);
+        } // animate happy msg layer @ 116
       
-        if ( ((!currentBG_isMMOL) && (current_bg == 200)) || ((currentBG_isMMOL) && (current_bg == 110)) ) {
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 222)) || ((currentBG_isMMOL == 111) && (current_bg == 120)) ) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer200);
-        } // animate happy msg layer @ 300
+		      animate_happymsg(happymsg_buffer222);
+        } // animate happy msg layer @ 222
 		
-        if ((!currentBG_isMMOL) && (current_bg == 300)) {
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 83)) || ((currentBG_isMMOL == 111) && (current_bg == 83)) ) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer300);
-        } // animate happy msg layer @ 300
+		      animate_happymsg(happymsg_buffer83);
+        } // animate happy msg layer @ 83
         
-        if (HardCodeAllAnimations) {
+        if (HardCodeAllAnimations == 111) {
           // extra animations for those that want them, these are the old ones
-		      if ( ((!currentBG_isMMOL) && (current_bg == 111)) || ((currentBG_isMMOL) && (current_bg == 60)) ) {
+		      if ((currentBG_isMMOL == 100) && (current_bg == 321)) {
 		        // ANIMATE HAPPY MSG LAYER     
 		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		        animate_happymsg(happymsg_buffer111);
-		      } // animate happy msg layer @ 111
+		        animate_happymsg(happymsg_buffer321);
+		      } // animate happy msg layer @ 321
         
-		      if ( ((!currentBG_isMMOL) && (current_bg == 130)) || ((currentBG_isMMOL) && (current_bg == 70)) ) {
+		      if ((currentBG_isMMOL == 100) && (current_bg == 123)) {
 		        // ANIMATE HAPPY MSG LAYER     
 		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		        animate_happymsg(happymsg_buffer130);
-		      } // animate happy msg layer @ 130          
+		        animate_happymsg(happymsg_buffer123);
+          }  // animate happy msg layer @ 123 
+          
+		      if ( ((currentBG_isMMOL == 100) && (current_bg == 65)) || ((currentBG_isMMOL == 111) && (current_bg == 35)) ) {
+		        // ANIMATE HAPPY MSG LAYER     
+		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
+		        animate_happymsg(happymsg_buffer65);            
+		      } // animate happy msg layer @ 65 
         } // HardCodeAllAnimations
         
       } // HardCodeNoAnimations; end all animation code
@@ -1694,16 +1573,16 @@ static void load_bg() {
       }	  } // end bg checks (if special_value_bitmap)
        
       // see if we're going to use the current bg or the calculated raw bg for vibrations
-      if ( ((current_bg > 0) && (current_bg < bg_ptr[SPECVALUE_BG_INDX])) && (HaveCalcRaw) ) {
+      if ( ((current_bg > 0) && (current_bg < bg_ptr[SPECVALUE_BG_INDX])) && (HaveCalcRaw == 111) ) {
         
         current_calc_raw = myBGAtoi(last_calc_raw);
         
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, TurnOffVibrationsCalcRaw: %d", TurnOffVibrationsCalcRaw);
          
-        if (!TurnOffVibrationsCalcRaw) {
+        if (TurnOffVibrationsCalcRaw == 100) {
           // set current_bg to calculated raw so we can vibrate on that instead
           current_bg = current_calc_raw;
-          if (!currentBG_isMMOL) {
+          if (currentBG_isMMOL == 100) {
             bg_ptr = BG_MGDL;
             specvalue_ptr = SPECVALUE_MGDL;
           }
@@ -1739,263 +1618,17 @@ static void load_bg() {
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, START VIBRATE, CALC_RAW 2: %d FORMAT CALC RAW 2: %s ", current_calc_raw2, formatted_calc_raw2);
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, START VIBRATE, CALC_RAW 3: %d FORMAT CALC RAW 2: %s ", current_calc_raw3, formatted_calc_raw3);
       
-      // check BG and vibrate if needed
-      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, CHECK TO SEE IF WE NEED TO VIBRATE");
-	  // check for SPECIAL VALUE
-      if ( ( ((current_bg > 0) && (current_bg < bg_ptr[SPECVALUE_BG_INDX]))
-          && ((lastAlertTime == 0) || (lastAlertTime > SPECVALUE_SNZ_MIN)) )
-		    || ( ((current_bg > 0) && (current_bg <= bg_ptr[SPECVALUE_BG_INDX])) && (!specvalue_overwrite) ) ) {
-      
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE BG ALERT");
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime SPEC VALUE SNOOZE VALUE IN: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "specvalue_overwrite IN: %i", specvalue_overwrite);
-     
-        // send alert and handle a bouncing connection
-        if ((lastAlertTime == 0) || (!specvalue_overwrite)) { 
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, SPECIAL VALUE: VIBRATE");
-          alert_handler_cgm(SPECVALUE_VIBE);        
-          // don't know where we are coming from, so reset last alert time no matter what
-          // set to 1 to prevent bouncing connection
-          lastAlertTime = 1;
-          if (!specvalue_overwrite) { specvalue_overwrite = true; }
-        }
-      
-        // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime > SPECVALUE_SNZ_MIN) { 
-          lastAlertTime = 0;
-          specvalue_overwrite = false;
-          hypolow_overwrite = false;
-          biglow_overwrite = false;
-          midlow_overwrite = false;
-          low_overwrite = false;
-          midhigh_overwrite = false;
-          bighigh_overwrite = false;
-        }
-      
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime SPEC VALUE SNOOZE VALUE OUT: %i", lastAlertTime);
-		//APP_LOG(APP_LOG_LEVEL_DEBUG, "specvalue_overwrite OUT: %i", specvalue_overwrite);
-      } // else if SPECIAL VALUE BG
-      
-	  // check for HYPO LOW BG and not SPECIAL VALUE
-      else if ( ( ((current_bg > bg_ptr[SPECVALUE_BG_INDX]) && (current_bg <= bg_ptr[HYPOLOW_BG_INDX])) 
-             && ((lastAlertTime == 0) || (lastAlertTime > HYPOLOW_SNZ_MIN)) ) 
-           || ( ((current_bg > bg_ptr[SPECVALUE_BG_INDX]) && (current_bg <= bg_ptr[HYPOLOW_BG_INDX])) && (!hypolow_overwrite) ) ) {
-      
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, HYPO LOW BG ALERT");
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime HYPO LOW SNOOZE VALUE IN: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "hypolow_overwrite IN: %i", hypolow_overwrite);
-      
-        // send alert and handle a bouncing connection
-        if ((lastAlertTime == 0) || (!hypolow_overwrite)) { 
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, HYPO LOW: VIBRATE");
-          alert_handler_cgm(HYPOLOWBG_VIBE);        
-          if (lastAlertTime == 0) { lastAlertTime = 1; }
-          if (!hypolow_overwrite) { hypolow_overwrite = true; }
-        }
-      
-        // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime > HYPOLOW_SNZ_MIN) { 
-          lastAlertTime = 0;
-          specvalue_overwrite = false;
-          hypolow_overwrite = false;
-          biglow_overwrite = false;
-          midlow_overwrite = false;
-          low_overwrite = false;
-        }
-      
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime HYPO LOW SNOOZE VALUE OUT: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "hypolow_overwrite OUT: %i", hypolow_overwrite);
-      } // else if HYPO LOW BG
-	  
-      // check for BIG LOW BG
-      else if ( ( ((current_bg > bg_ptr[HYPOLOW_BG_INDX]) && (current_bg <= bg_ptr[BIGLOW_BG_INDX])) 
-             && ((lastAlertTime == 0) || (lastAlertTime > BIGLOW_SNZ_MIN)) ) 
-           || ( ((current_bg > bg_ptr[HYPOLOW_BG_INDX]) && (current_bg <= bg_ptr[BIGLOW_BG_INDX])) && (!biglow_overwrite) ) ) {
-      
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BIG LOW BG ALERT");
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime BIG LOW SNOOZE VALUE IN: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "biglow_overwrite IN: %i", biglow_overwrite);
-      
-        // send alert and handle a bouncing connection
-        if ((lastAlertTime == 0) || (!biglow_overwrite)) { 
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BIG LOW: VIBRATE");
-          alert_handler_cgm(BIGLOWBG_VIBE);        
-          if (lastAlertTime == 0) { lastAlertTime = 1; }
-          if (!biglow_overwrite) { biglow_overwrite = true; }
-        }
-      
-        // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime > BIGLOW_SNZ_MIN) { 
-          lastAlertTime = 0;
-          specvalue_overwrite = false;
-          hypolow_overwrite = false;
-          biglow_overwrite = false;
-          midlow_overwrite = false;
-          low_overwrite = false;
-        }
-      
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime BIG LOW SNOOZE VALUE OUT: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "biglow_overwrite OUT: %i", biglow_overwrite);
-      } // else if BIG LOW BG
-	 
-      // check for MID LOW BG
-      else if ( ( ((current_bg > bg_ptr[BIGLOW_BG_INDX]) && (current_bg <= bg_ptr[MIDLOW_BG_INDX])) 
-             && ((lastAlertTime == 0) || (lastAlertTime > MIDLOW_SNZ_MIN)) ) 
-           || ( ((current_bg > bg_ptr[BIGLOW_BG_INDX]) && (current_bg <= bg_ptr[MIDLOW_BG_INDX])) && (!midlow_overwrite) ) ) {
-      
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, MID LOW BG ALERT");
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime MID LOW SNOOZE VALUE IN: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "midlow_overwrite IN: %i", midlow_overwrite);
-      
-        // send alert and handle a bouncing connection
-        if ((lastAlertTime == 0) || (!midlow_overwrite)) { 
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, MID LOW: VIBRATE");
-          alert_handler_cgm(LOWBG_VIBE);        
-          if (lastAlertTime == 0) { lastAlertTime = 1; }
-          if (!midlow_overwrite) { midlow_overwrite = true; }
-        }
-      
-        // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime > MIDLOW_SNZ_MIN) { 
-          lastAlertTime = 0;
-          specvalue_overwrite = false;
-          hypolow_overwrite = false;
-          biglow_overwrite = false;
-          midlow_overwrite = false;
-          low_overwrite = false;
-        }
-      
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime MID LOW SNOOZE VALUE OUT: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "midlow_overwrite OUT: %i", midlow_overwrite);
-      } // else if MID HIGH BG
-
-      // check for LOW BG
-      else if ( ( ((current_bg > bg_ptr[MIDLOW_BG_INDX]) && (current_bg <= bg_ptr[LOW_BG_INDX])) 
-               && ((lastAlertTime == 0) || (lastAlertTime > LOW_SNZ_MIN)) )
-             || ( ((current_bg > bg_ptr[MIDLOW_BG_INDX]) && (current_bg <= bg_ptr[LOW_BG_INDX])) && (!low_overwrite) ) ) {
-      
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, LOW BG ALERT");
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime LOW SNOOZE VALUE IN: %i", lastAlertTime);
-		//APP_LOG(APP_LOG_LEVEL_DEBUG, "low_snz_min LOW SNOOZE VALUE IN: %i", LOW_SNZ_MIN);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "low_overwrite IN: %i", low_overwrite);
-      
-        // send alert and handle a bouncing connection
-        if ((lastAlertTime == 0) || (!low_overwrite)) { 
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, LOW: VIBRATE");
-          alert_handler_cgm(LOWBG_VIBE); 
-          if (lastAlertTime == 0) { lastAlertTime = 1; }
-          if (!low_overwrite) { low_overwrite = true; }
-        }
-      
-        // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime > LOW_SNZ_MIN) {
-          lastAlertTime = 0; 
-          specvalue_overwrite = false;
-          hypolow_overwrite = false;
-          biglow_overwrite = false;
-          midlow_overwrite = false;
-          low_overwrite = false;
-        }
-      
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime LOW SNOOZE VALUE OUT: %i", lastAlertTime);
-		//APP_LOG(APP_LOG_LEVEL_DEBUG, "low_snz_min LOW SNOOZE VALUE OUT: %i", LOW_SNZ_MIN);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "low_overwrite OUT: %i", low_overwrite);
-      }  // else if LOW BG
-      
-      // check for HIGH BG
-      else if ( ( ((current_bg >= bg_ptr[HIGH_BG_INDX]) && (current_bg < bg_ptr[MIDHIGH_BG_INDX])) 
-             && ((lastAlertTime == 0) || (lastAlertTime > HIGH_SNZ_MIN)) ) 
-           || ( ((current_bg >= bg_ptr[HIGH_BG_INDX]) && (current_bg < bg_ptr[MIDHIGH_BG_INDX])) && (!high_overwrite) ) ) {
-      
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, HIGH BG ALERT");   
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime HIGH SNOOZE VALUE IN: %i", lastAlertTime);
-		//APP_LOG(APP_LOG_LEVEL_DEBUG, "high_snz_min HIGH SNOOZE VALUE IN: %i", HIGH_SNZ_MIN);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "high_overwrite IN: %i", high_overwrite);
-      
-        // send alert and handle a bouncing connection
-        if ((lastAlertTime == 0) || (!high_overwrite)) {  
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, HIGH: VIBRATE");
-          alert_handler_cgm(HIGHBG_VIBE);
-          if (lastAlertTime == 0) { lastAlertTime = 1; }
-          if (!high_overwrite) { high_overwrite = true; }
-        }
-       
-        // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime > HIGH_SNZ_MIN) {
-          lastAlertTime = 0; 
-          specvalue_overwrite = false;
-          high_overwrite = false;
-          midhigh_overwrite = false;
-          bighigh_overwrite = false;
-        } 
-       
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime HIGH SNOOZE VALUE OUT: %i", lastAlertTime);
-		//APP_LOG(APP_LOG_LEVEL_DEBUG, "high_snz_min HIGH SNOOZE VALUE OUT: %i", HIGH_SNZ_MIN);
-		//APP_LOG(APP_LOG_LEVEL_DEBUG, "high_overwrite OUT: %i", high_overwrite);
-      } // else if HIGH BG
-    
-      // check for MID HIGH BG
-      else if ( ( ((current_bg >= bg_ptr[MIDHIGH_BG_INDX]) && (current_bg < bg_ptr[BIGHIGH_BG_INDX])) 
-               && ((lastAlertTime == 0) || (lastAlertTime > MIDHIGH_SNZ_MIN)) )
-             || ( ((current_bg >= bg_ptr[MIDHIGH_BG_INDX]) && (current_bg < bg_ptr[BIGHIGH_BG_INDX])) && (!midhigh_overwrite) ) ) {  
-      
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, MID HIGH BG ALERT");
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime MID HIGH SNOOZE VALUE IN: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "midhigh_overwrite IN: %i", midhigh_overwrite);
-      
-        // send alert and handle a bouncing connection
-        if ((lastAlertTime == 0) || (!midhigh_overwrite)) { 
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, MID HIGH: VIBRATE");
-          alert_handler_cgm(HIGHBG_VIBE);
-          if (lastAlertTime == 0) { lastAlertTime = 1; }
-          if (!midhigh_overwrite) { midhigh_overwrite = true; }
-        }
-      
-        // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime > MIDHIGH_SNZ_MIN) { 
-          lastAlertTime = 0; 
-          specvalue_overwrite = false;
-          high_overwrite = false;
-          midhigh_overwrite = false;
-          bighigh_overwrite = false;
-        } 
-      
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime MID HIGH SNOOZE VALUE OUT: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "midhigh_overwrite OUT: %i", midhigh_overwrite);
-      } // else if MID HIGH BG
-  
-      // check for BIG HIGH BG
-      else if ( ( (current_bg >= bg_ptr[BIGHIGH_BG_INDX]) 
-               && ((lastAlertTime == 0) || (lastAlertTime > BIGHIGH_SNZ_MIN)) )
-               || ((current_bg >= bg_ptr[BIGHIGH_BG_INDX]) && (!bighigh_overwrite)) ) {   
-      
-        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BIG HIGH BG ALERT");
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime BIG HIGH SNOOZE VALUE IN: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "bighigh_overwrite IN: %i", bighigh_overwrite);
-      
-        // send alert and handle a bouncing connection
-        if ((lastAlertTime == 0) || (!bighigh_overwrite)) {
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, BIG HIGH: VIBRATE");
-          alert_handler_cgm(BIGHIGHBG_VIBE);
-          if (lastAlertTime == 0) { lastAlertTime = 1; }
-          if (!bighigh_overwrite) { bighigh_overwrite = true; }
-        }
-      
-        // if hit snooze, reset snooze counter; will alert next time around
-        if (lastAlertTime > BIGHIGH_SNZ_MIN) { 
-          lastAlertTime = 0;
-          specvalue_overwrite = false;
-          high_overwrite = false;
-          midhigh_overwrite = false;
-          bighigh_overwrite = false;
-        } 
-      
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "lastAlertTime BIG HIGH SNOOZE VALUE OUT: %i", lastAlertTime);
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "bighigh_overwrite OUT: %i", bighigh_overwrite);
-      } // else if BIG HIGH BG
+	  bg_vibrator (0, bg_ptr[SPECVALUE_BG_INDX], SPECVALUE_SNZ_MIN, &specvalue_overwrite, SPECVALUE_VIBE);
+	  bg_vibrator (bg_ptr[SPECVALUE_BG_INDX], bg_ptr[HYPOLOW_BG_INDX], HYPOLOW_SNZ_MIN, &hypolow_overwrite, HYPOLOWBG_VIBE);
+	  bg_vibrator (bg_ptr[HYPOLOW_BG_INDX], bg_ptr[BIGLOW_BG_INDX], BIGLOW_SNZ_MIN, &biglow_overwrite, BIGLOWBG_VIBE);
+	  bg_vibrator (bg_ptr[BIGLOW_BG_INDX], bg_ptr[MIDLOW_BG_INDX], MIDLOW_SNZ_MIN, &midlow_overwrite, LOWBG_VIBE);
+	  bg_vibrator (bg_ptr[MIDLOW_BG_INDX], bg_ptr[LOW_BG_INDX], LOW_SNZ_MIN, &low_overwrite, LOWBG_VIBE);
+ 	  bg_vibrator (bg_ptr[HIGH_BG_INDX], bg_ptr[MIDHIGH_BG_INDX], HIGH_SNZ_MIN, &high_overwrite, HIGHBG_VIBE);
+ 	  bg_vibrator (bg_ptr[MIDHIGH_BG_INDX], bg_ptr[BIGHIGH_BG_INDX], MIDHIGH_SNZ_MIN, &midhigh_overwrite, HIGHBG_VIBE);
+	  bg_vibrator (bg_ptr[BIGHIGH_BG_INDX], 1000, BIGHIGH_SNZ_MIN, &bighigh_overwrite, BIGHIGHBG_VIBE);
 
       // else "normal" range or init code
-      else if ( ((current_bg > bg_ptr[LOW_BG_INDX]) && (current_bg < bg_ptr[HIGH_BG_INDX])) 
+      if ( ((current_bg > bg_ptr[LOW_BG_INDX]) && (current_bg < bg_ptr[HIGH_BG_INDX])) 
               || (current_bg <= 0) ) {
       
         // do nothing; just reset snooze counter
@@ -2012,85 +1645,125 @@ static void load_bg() {
 static void load_cgmtime() {
     //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME FUNCTION START");
 	
-	// VARIABLES
-	uint32_t current_cgm_timeago = 0;
-	int cgm_timeago_diff = 0;
+    // VARIABLES
+  
     
-	// CODE START
+    static uint32_t cgm_time_offset = 0;
+    static char formatted_cgm_timeago[10] = {0};
+  
+    int cgm_timeago_diff = 0;
+    char cgm_label_buffer[6] = {0};	
+    
+    // CODE START
 	
     // initialize label buffer
     strncpy(cgm_label_buffer, "", LABEL_BUFFER_SIZE);
        
-    //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, NEW CGM TIME: %s", new_cgm_time);
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, NEW CGM TIME: %lu", current_cgm_time);
     
     if (current_cgm_time == 0) {     
       // Init code or error code; set text layer & icon to empty value 
-      // APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CGM TIME AGO INIT OR ERROR CODE: %s", cgm_label_buffer);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CGM TIME AGO INIT OR ERROR CODE: %s", cgm_label_buffer);
       text_layer_set_text(cgmtime_layer, "");
-      create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);            
+      create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);
+      init_loading_cgm_timeago = 111;
     }
-    else {
-	  // set rcvr on icon
-      create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRON_ICON_INDX]);
-      
+    else {    
+   
       cgm_time_now = time(NULL);
       
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIME: %lu", current_cgm_time);
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, TIME NOW IN CGM: %lu", cgm_time_now);
-        
-      current_cgm_timeago = abs(cgm_time_now - current_cgm_time);
-        
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIMEAGO: %lu", current_cgm_timeago);
-      
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, GM TIME AGO LABEL IN: %s", cgm_label_buffer);
-      
-      if (current_cgm_timeago < MINUTEAGO) {
-        cgm_timeago_diff = 0;
-        strncpy (formatted_cgm_timeago, "now", TIMEAGO_BUFFER_SIZE);
-      }
-      else if (current_cgm_timeago < HOURAGO) {
-        cgm_timeago_diff = (current_cgm_timeago / MINUTEAGO);
-        snprintf(formatted_cgm_timeago, TIMEAGO_BUFFER_SIZE, "%i", cgm_timeago_diff);
-        strncpy(cgm_label_buffer, "m", LABEL_BUFFER_SIZE);
-        strcat(formatted_cgm_timeago, cgm_label_buffer);
-      }
-      else if (current_cgm_timeago < DAYAGO) {
-        cgm_timeago_diff = (current_cgm_timeago / HOURAGO);
-        snprintf(formatted_cgm_timeago, TIMEAGO_BUFFER_SIZE, "%i", cgm_timeago_diff);
-        strncpy(cgm_label_buffer, "h", LABEL_BUFFER_SIZE);
-        strcat(formatted_cgm_timeago, cgm_label_buffer);
-      }
-      else if (current_cgm_timeago < WEEKAGO) {
-        cgm_timeago_diff = (current_cgm_timeago / DAYAGO);
-        snprintf(formatted_cgm_timeago, TIMEAGO_BUFFER_SIZE, "%i", cgm_timeago_diff);
-        strncpy(cgm_label_buffer, "d", LABEL_BUFFER_SIZE);
-        strcat(formatted_cgm_timeago, cgm_label_buffer);
+      // display cgm_timeago as now to 5m always, no matter what the difference is by using an offset
+      if (stored_cgm_time == current_cgm_time) {
+        current_cgm_timeago = ( (abs(cgm_time_now - current_cgm_time)) - cgm_time_offset );
       }
       else {
-        strncpy (formatted_cgm_timeago, "ERR", TIMEAGO_BUFFER_SIZE);
-        create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);        
+        if ((stored_cgm_time != 0) && (BluetoothAlert == 100) && (AppSyncErrAlert == 100) && 
+          (PhoneOffAlert == 100)) {
+          init_loading_cgm_timeago = 100;
+        }
+        stored_cgm_time = current_cgm_time;
+        current_cgm_timeago = 0;
+        cgm_time_offset = abs(cgm_time_now - current_cgm_time); 
+      }
+
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIME: %lu", current_cgm_time);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, STORED CGM TIME: %lu", stored_cgm_time);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, TIME NOW IN CGM: %lu", cgm_time_now);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CGM TIME OFFSET: %lu", cgm_time_offset);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIMEAGO: %lu", current_cgm_timeago);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, INIT LOADING BOOL: %d", init_loading_cgm_timeago);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, GM TIME AGO LABEL IN: %s", cgm_label_buffer);
+      
+      
+	    // if not in initial cgm timeago, set rcvr on icon and time label
+      if (init_loading_cgm_timeago == 100) {
+        create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRON_ICON_INDX]);
+      
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIME: %lu", current_cgm_time);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, STORED CGM TIME: %lu", stored_cgm_time);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, TIME NOW IN CGM: %lu", cgm_time_now);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CGM TIME OFFSET: %lu", cgm_time_offset);
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIMEAGO: %lu", current_cgm_timeago);
+      
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, GM TIME AGO LABEL IN: %s", cgm_label_buffer);
+      
+        if (current_cgm_timeago < MINUTEAGO) {
+          cgm_timeago_diff = 0;
+          strncpy (formatted_cgm_timeago, "now", TIMEAGO_BUFFER_SIZE);
+        }
+        else if (current_cgm_timeago < HOURAGO) {
+          cgm_timeago_diff = (current_cgm_timeago / MINUTEAGO);
+          snprintf(formatted_cgm_timeago, TIMEAGO_BUFFER_SIZE, "%i", cgm_timeago_diff);
+          strncpy(cgm_label_buffer, "m", LABEL_BUFFER_SIZE);
+          strcat(formatted_cgm_timeago, cgm_label_buffer);
+        }
+        else if (current_cgm_timeago < DAYAGO) {
+          cgm_timeago_diff = (current_cgm_timeago / HOURAGO);
+          snprintf(formatted_cgm_timeago, TIMEAGO_BUFFER_SIZE, "%i", cgm_timeago_diff);
+          strncpy(cgm_label_buffer, "h", LABEL_BUFFER_SIZE);
+          strcat(formatted_cgm_timeago, cgm_label_buffer);
+        }
+        else if (current_cgm_timeago < WEEKAGO) {
+          cgm_timeago_diff = (current_cgm_timeago / DAYAGO);
+          snprintf(formatted_cgm_timeago, TIMEAGO_BUFFER_SIZE, "%i", cgm_timeago_diff);
+          strncpy(cgm_label_buffer, "d", LABEL_BUFFER_SIZE);
+          strcat(formatted_cgm_timeago, cgm_label_buffer);
+        }
+        else {
+          strncpy (formatted_cgm_timeago, "ERR", TIMEAGO_BUFFER_SIZE);
+          create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);
+          init_loading_cgm_timeago = 111;
+        }
+      
+        text_layer_set_text(cgmtime_layer, formatted_cgm_timeago);
+          
       }
       
-      text_layer_set_text(cgmtime_layer, formatted_cgm_timeago);
-          
       // check to see if we need to show receiver off icon
-      if ( (cgm_timeago_diff >= CGMOUT_WAIT_MIN) || ( (strcmp(cgm_label_buffer, "") != 0) && (strcmp(cgm_label_buffer, "m") != 0) ) ) {
-	    // set receiver off icon
-        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET RCVR OFF ICON, CGM TIMEAGO DIFF: %d", cgm_timeago_diff);
-		//APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET RCVR OFF ICON, LABEL: %s", cgm_label_buffer);
-		create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVROFF_ICON_INDX]);
-		
-		// Vibrate if we need to
-		if ((!CGMOffAlert) && (!PhoneOffAlert)) {
-		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME, CGM TIMEAGO: VIBRATE");
-		  alert_handler_cgm(CGMOUT_VIBE);
-		  CGMOffAlert = true;
-		}
-	  }
-	  else {
-	    // reset CGMOffAlert
-        CGMOffAlert = false;
-      }		
+      if ( ((cgm_timeago_diff >= CGMOUT_WAIT_MIN) || ((strcmp(cgm_label_buffer, "") != 0) && (strcmp(cgm_label_buffer, "m") != 0))) 
+        || ((current_cgm_timeago < HOURAGO) && ((current_cgm_timeago / MINUTEAGO) >= CGMOUT_INIT_WAIT_MIN) && (init_loading_cgm_timeago == 111)) ) {
+	      // set receiver off icon
+	      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET RCVR OFF ICON, CGM TIMEAGO DIFF: %d", cgm_timeago_diff);
+	      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET RCVR OFF ICON, LABEL: %s", cgm_label_buffer);
+        if (init_loading_cgm_timeago == 100) {
+	        create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVROFF_ICON_INDX]);
+        }       
+	      // Vibrate if we need to
+	      if ((CGMOffAlert == 100) && (PhoneOffAlert == 100)) {
+	        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME, CGM TIMEAGO: VIBRATE");
+	        alert_handler_cgm(CGMOUT_VIBE);
+	        CGMOffAlert = 111;
+	      } // if CGMOffAlert       
+      } // if CGM_OUT_MIN     
+	    else {
+	      // CGM is not out, reset CGMOffAlert
+        if (CGMOffAlert == 111) { 
+          ClearedOutage = 111; 
+          //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET CLEARED OUTAGE: %i ", ClearedOutage);
+        } 
+        CGMOffAlert = 100;
+      } // else CGM_OUT_MIN
+      
     } // else init code
     
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CGM TIMEAGO LABEL OUT: %s", cgm_label_buffer);
@@ -2121,18 +1794,25 @@ static void load_apptime(){
         // erase cgm ago times and cgm icon
         text_layer_set_text(cgmtime_layer, "");
         create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRNONE_ICON_INDX]);
+        init_loading_cgm_timeago = 111;
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, SET init_loading_cgm_timeago: %i", init_loading_cgm_timeago);
 		
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, CHECK IF HAVE TO VIBRATE");
 		  // Vibrate if we need to
-		  if (!PhoneOffAlert) {
+		  if (PhoneOffAlert == 100) {
 		    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, READ APP TIMEAGO: VIBRATE");
 		    alert_handler_cgm(PHONEOUT_VIBE);
-		    PhoneOffAlert = true;
+		    PhoneOffAlert = 111;
 		  }
 	  }
 	  else {
-	    // reset PhoneOffAlert
-      PhoneOffAlert = false;
+	    // reset PhoneOffAlert    
+      if (PhoneOffAlert == 111) {
+        ClearedOutage = 111;
+        stored_cgm_time = current_cgm_time;
+        //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, SET CLEARED OUTAGE: %i ", ClearedOutage);
+      } 
+      PhoneOffAlert = 100;
     }		
     //} // else init code 
 	
@@ -2146,6 +1826,12 @@ static void load_bg_delta() {
 	const uint8_t MSGLAYER_BUFFER_SIZE = 14;
 	const uint8_t BGDELTA_LABEL_SIZE = 14;
 	const uint8_t BGDELTA_FORMATTED_SIZE = 14;
+  
+  // VARIABLES
+  static char formatted_bg_delta[14] = {0};
+  
+  char delta_label_buffer[14] = {0};
+
 	
 	// CODE START
 	
@@ -2158,13 +1844,14 @@ static void load_bg_delta() {
 	}
     
 	// check for CHECK PHONE condition, if true set message
-	if ((PhoneOffAlert) && (!TurnOff_CHECKPHONE_Msg)) {
+	if ((PhoneOffAlert == 111) && (TurnOff_CHECKPHONE_Msg == 100)) {
 	  text_layer_set_text(message_layer, "CHECK PHONE");
-      return;	
+    //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG DELTA MSG, init_loading_cgm_timeago: %i", init_loading_cgm_timeago);
+    return;	
 	}
 	
 	// check for CHECK CGM condition, if true set message
-	if ((CGMOffAlert) && (!TurnOff_CHECKCGM_Msg)) {
+	if ((CGMOffAlert == 111) && (TurnOff_CHECKCGM_Msg == 100)) {
 	  text_layer_set_text(message_layer, "CHECK RIG");
     return;	
 	}
@@ -2183,19 +1870,27 @@ static void load_bg_delta() {
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
-      specvalue_alert = false;
+      specvalue_alert = 100;
       return;	
 	}
 
+  // check for COMPRESSION (compression low) condition, if true set message
+	if (strcmp(current_bg_delta, "PRSS") == 0) {
+      strncpy(formatted_bg_delta, "COMPRESSION?", MSGLAYER_BUFFER_SIZE);
+      text_layer_set_text(message_layer, formatted_bg_delta);
+      return;	
+	}
+  
   	// check for DATA OFFLINE condition, if true set message to fix condition	
 	if (strcmp(current_bg_delta, "OFF") == 0) {
     if (dataoffline_retries_counter >= DATAOFFLINE_RETRIES_MAX) {
       strncpy(formatted_bg_delta, "ATTN: NO DATA", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
-      if (!DataOfflineAlert) {
+      if (DataOfflineAlert == 100) {
+        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG DELTA, DATA OFFLINE, VIBRATE");
         alert_handler_cgm(DATAOFFLINE_VIBE);
-        DataOfflineAlert = true;
+        DataOfflineAlert = 111;
       } // DataOfflineAlert
       // NOTE: DataOfflineAlert is cleared in load_icon because that means we got a good message again
       // NOTE: dataoffline_retries_counter is cleared in load_icon because that means we got a good message again
@@ -2209,12 +1904,12 @@ static void load_bg_delta() {
   	// check if LOADING.., if true set message
   	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
-      strncpy(formatted_bg_delta, "LOADING 7.0", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "LOADING 7.1", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
-      specvalue_alert = false;
-      return;	
+      specvalue_alert = 100;
+      return;
     }
  
 	// check for zero delta here; if get later then we know we have an error instead
@@ -2249,7 +1944,7 @@ static void load_bg_delta() {
     }
   
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG DELTA, DELTA STRING: %s", &current_bg_delta[i]);
-    if (!currentBG_isMMOL) {
+    if (currentBG_isMMOL == 100) {
 	  // set mg/dL string
 	  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG DELTA: FOUND MG/DL, SET STRING");
 	    if (converted_bgDelta >= 100) {
@@ -2288,7 +1983,11 @@ static void load_rig_battlevel() {
 	const uint8_t BATTLEVEL_PERCENT_SIZE = 6;
 	
 	// VARIABLES
-	int current_battlevel = 0;
+  static char formatted_battlevel[10] = {0};
+  static uint8_t LowBatteryAlert = 100;
+  
+	uint8_t current_battlevel = 0;
+  char battlevel_percent[6] = {0};
 
 	// CODE START
 	
@@ -2301,7 +2000,7 @@ static void load_rig_battlevel() {
       // Init code or no battery, can't do battery; set text layer & icon to empty value 
       //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, NO BATTERY");
       text_layer_set_text(rig_battlevel_layer, "");
-      LowBatteryAlert = false;	  
+      LowBatteryAlert = 100;	
       return;
     }
   
@@ -2310,15 +2009,15 @@ static void load_rig_battlevel() {
       //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, ZERO BATTERY, SET STRING");
       text_layer_set_text(rig_battlevel_layer, "0%");
       layer_set_hidden((Layer *)inv_rig_battlevel_layer, false);
-      if (!LowBatteryAlert) {
+      if (LowBatteryAlert == 100) {
 		//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, ZERO BATTERY, VIBRATE");
 		alert_handler_cgm(LOWBATTERY_VIBE);
-		LowBatteryAlert = true;
+		LowBatteryAlert = 111;
       }	 
       return;
     }
   
-	current_battlevel = myAtoi(last_battlevel);
+	current_battlevel = atoi(last_battlevel);
   
 	//APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BATTLEVEL, CURRENT BATTLEVEL: %i", current_battlevel);
   
@@ -2341,28 +2040,28 @@ static void load_rig_battlevel() {
 
 	if ( (current_battlevel > 10) && (current_battlevel <= 20) ) {
     layer_set_hidden((Layer *)inv_rig_battlevel_layer, false);
-    if (!LowBatteryAlert) {
+    if (LowBatteryAlert == 100) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, LOW BATTERY, 20 OR LESS, VIBRATE");
 	    alert_handler_cgm(LOWBATTERY_VIBE);
-	    LowBatteryAlert = true;
+	    LowBatteryAlert = 111;
     }
 	}
   
 	if ( (current_battlevel > 5) && (current_battlevel <= 10) ) {
     layer_set_hidden((Layer *)inv_rig_battlevel_layer, false);
-    if (!LowBatteryAlert) {
+    if (LowBatteryAlert == 100) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, LOW BATTERY, 10 OR LESS, VIBRATE");
 	    alert_handler_cgm(LOWBATTERY_VIBE);
-	    LowBatteryAlert = true;
+	    LowBatteryAlert = 111;
     }
   }
   
 	if ( (current_battlevel > 0) && (current_battlevel <= 5) ) {
     layer_set_hidden((Layer *)inv_rig_battlevel_layer, false);
-    if (!LowBatteryAlert) {
+    if (LowBatteryAlert == 100) {
 	    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BATTLEVEL, LOW BATTERY, 5 OR LESS, VIBRATE");
 	    alert_handler_cgm(LOWBATTERY_VIBE);
-	    LowBatteryAlert = true;
+	    LowBatteryAlert = 111;
     }	  
   }
 	
@@ -2373,7 +2072,18 @@ static void load_noise() {
     //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD NOISE, FUNCTION START");
 
   	// CONSTANTS
+  	#define NO_NOISE 0
+  	#define CLEAN_NOISE 1
+  	#define LIGHT_NOISE 2
+  	#define MEDIUM_NOISE 3
+  	#define HEAVY_NOISE 4
+  	#define WARMUP_NOISE 5
+  	#define OTHER_NOISE 6  
+  
   	const uint8_t NOISE_FORMATTED_SIZE = 8;
+  
+    // VARIABLES
+  	static char formatted_noise[8] = {0};
   
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD NOISE, CURRENT NOISE VALUE: %i ", current_noise_value);  
     
@@ -2446,8 +2156,19 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
 	case CGM_TCGM_KEY:;
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: READ CGM TIME");
       current_cgm_time = new_tuple->value->uint32;
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CGM TIME VALUE: %i ", current_cgm_time);
+      cgm_time_now = time(NULL);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CLEARED OUTAGE IN: %i ", ClearedOutage);
+      if ((ClearedOutage == 111) && (stored_cgm_time != 0)) {
+        stored_cgm_time = current_cgm_time;
+        init_loading_cgm_timeago = 111;
+        ClearedOutage = 100;
+      }
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CURRENT CGM TIME: %lu ", current_cgm_time);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, TIME NOW: %lu ", cgm_time_now);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, STORED CGM TIME: %lu ", stored_cgm_time);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CLEARED OUTAGE OUT: %i ", ClearedOutage);
       load_cgmtime();
+      //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: READ CGM TIME OUT");
       break; // break for CGM_TCGM_KEY
 
 	case CGM_TAPP_KEY:;
@@ -2466,12 +2187,9 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
 	
 	case CGM_UBAT_KEY:;
    	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: UPLOADER BATTERY LEVEL");
-   	  //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL IN, COPY LAST BATTLEVEL");
       strncpy(last_battlevel, new_tuple->value->cstring, BATTLEVEL_MSGSTR_SIZE);
    	  //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, BATTERY LEVEL VALUE: %s ", last_battlevel);
-      //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL, CALL LOAD BATTLEVEL");
       load_rig_battlevel();
-      //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: BATTERY LEVEL OUT");
       break; // break for CGM_UBAT_KEY
 
 	case CGM_NAME_KEY:;
@@ -2490,16 +2208,16 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
       strncpy(last_calc_raw, new_tuple->value->cstring, BG_MSGSTR_SIZE);
       if ( (strcmp(last_calc_raw, "0") == 0) || (strcmp(last_calc_raw, "0.0") == 0) ) {
         strncpy(last_calc_raw, " ", BG_MSGSTR_SIZE);
-        HaveCalcRaw = false;
+        HaveCalcRaw = 100;
       }
-      else { HaveCalcRaw = true; }  
+      else { HaveCalcRaw = 111; }  
       text_layer_set_text(raw_calc_layer, last_calc_raw);
       break; // break for CGM_CLRW_KEY
     
  	case CGM_RWUF_KEY:;
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: RAW UNFILTERED");
       strncpy(last_raw_unfilt, new_tuple->value->cstring, BG_MSGSTR_SIZE);
-      if ( (strcmp(last_raw_unfilt, "0") == 0) || (strcmp(last_raw_unfilt, "0.0") == 0) || (!TurnOnUnfilteredRaw) ) {
+      if ( (strcmp(last_raw_unfilt, "0") == 0) || (strcmp(last_raw_unfilt, "0.0") == 0) || (TurnOnUnfilteredRaw == 100) ) {
         strncpy(last_raw_unfilt, " ", BG_MSGSTR_SIZE);
       }
       text_layer_set_text(raw_unfilt_layer, last_raw_unfilt);
@@ -2526,7 +2244,7 @@ static void send_cmd_cgm(void) {
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD, MSG OUTBOX OPEN, CHECK FOR ERROR");
   if (sendcmd_openerr != APP_MSG_OK) {
-     APP_LOG(APP_LOG_LEVEL_INFO, "WATCH SENDCMD OPEN ERROR");
+     //APP_LOG(APP_LOG_LEVEL_INFO, "WATCH SENDCMD OPEN ERROR");
      APP_LOG(APP_LOG_LEVEL_DEBUG, "WATCH SENDCMD OPEN ERR CODE: %i RES: %s", sendcmd_openerr, translate_app_error(sendcmd_openerr));
      return;
   }
@@ -2535,7 +2253,7 @@ static void send_cmd_cgm(void) {
   sendcmd_senderr = app_message_outbox_send();
   
   if (sendcmd_senderr != APP_MSG_OK) {
-     APP_LOG(APP_LOG_LEVEL_INFO, "WATCH SENDCMD SEND ERROR");
+     //APP_LOG(APP_LOG_LEVEL_INFO, "WATCH SENDCMD SEND ERROR");
      APP_LOG(APP_LOG_LEVEL_DEBUG, "WATCH SENDCMD SEND ERR CODE: %i RES: %s", sendcmd_senderr, translate_app_error(sendcmd_senderr));
   }
 
@@ -2824,8 +2542,8 @@ void window_unload_cgm(Window *window_cgm) {
   destroy_null_InverterLayer(&inv_rig_battlevel_layer);
   
   // destroy animation
-  destroy_perfectbg_animation(&perfectbg_animation);
-  destroy_perfectbg_animation(&happymsg_animation);
+  //destroy_perfectbg_animation(&perfectbg_animation);
+  //destroy_perfectbg_animation(&happymsg_animation);
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "WINDOW UNLOAD OUT");
 } // end window_unload_cgm
