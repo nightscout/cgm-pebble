@@ -71,7 +71,7 @@ function fetchCgmData() {
                     values = " ",
                     currentIcon = "10",
                     currentBG = responsebgs[0].sgv,
-                    //currentBG = "65",
+                    //currentBG = "107",
                     currentConvBG = currentBG,
                     rawCalcOffset = 5,
                     specialValue = false,
@@ -196,13 +196,20 @@ function fetchCgmData() {
                     if ( (typeof currentRawUnfilt != "undefined") && (currentRawUnfilt !== null) ) {
                       
                       // zero out any invalid values; defined anything not between 0 and 900
-                      if ( (currentRawFilt < 0) || (currentRawFilt > 900000) ) { currentRawFilt = "??"; }
-                      if ( (currentRawUnfilt < 0) || (currentRawUnfilt > 900000) ) { currentRawUnfilt = "??"; }
+                      if ( (currentRawFilt < 0) || (currentRawFilt > 900000) || 
+                            (isNaN(currentRawFilt)) ) { currentRawFilt = "ERR"; }
+                      if ( (currentRawUnfilt < 0) || (currentRawUnfilt > 900000) || 
+                            (isNaN(currentRawUnfilt)) ) { currentRawUnfilt = "ERR"; }
                       
                       // set 0, LO and HI in calculated raw
                       if ( (currentCalcRaw >= 0) && (currentCalcRaw < 30) ) { formatCalcRaw = "LO"; }
                       if ( (currentCalcRaw > 500) && (currentCalcRaw <= 900) ) { formatCalcRaw = "HI"; }
-                      if ( (currentCalcRaw < 0 ) || (currentCalcRaw > 900) ) { formatCalcRaw = "??"; }
+                      if ( (currentCalcRaw < 0 ) || (currentCalcRaw > 900) ) { formatCalcRaw = "ERR"; }
+                      
+                      // if slope or intercept are at 0, or if currentCalcRaw is NaN, 
+                      // calculated raw is invalid and need a calibration
+                      if ( (currentSlope === 0) || (currentIntercept === 0) || 
+                           (isNaN(currentCalcRaw)) ) { formatCalcRaw = "CAL"; }
                       
                       // check for compression warning
                       if ( ((currentCalcRaw < (currentRawFilt/1000)) && (!calibrationValue)) && (currentRawFilt !== 0) ){
@@ -218,13 +225,17 @@ function fetchCgmData() {
                       if (opts.radio == "mgdl_form") { 
                         formatRawFilt = ((Math.round(currentRawFilt / 1000)).toFixed(0));
                         formatRawUnfilt = ((Math.round(currentRawUnfilt / 1000)).toFixed(0));
-                        if ( (formatCalcRaw != "LO") && (formatCalcRaw != "HI") ) { formatCalcRaw = ((Math.round(currentCalcRaw)).toFixed(0)); }
+                        if ( (formatCalcRaw != "LO") && (formatCalcRaw != "HI") && 
+                             (formatCalcRaw != "ERR") && (formatCalcRaw != "CAL") ) 
+                            { formatCalcRaw = ((Math.round(currentCalcRaw)).toFixed(0)); }
                         //console.log("Format Unfiltered: " + formatRawUnfilt);
                       } 
                       else {
                         formatRawFilt = ((Math.round(((currentRawFilt/1000)*0.0555) * 10) / 10).toFixed(1));
                         formatRawUnfilt = ((Math.round(((currentRawUnfilt/1000)*0.0555) * 10) / 10).toFixed(1));
-                        if ( (formatCalcRaw != "LO") && (formatCalcRaw != "HI") ) { formatCalcRaw = ((Math.round(currentCalcRaw)*0.0555).toFixed(1)); }
+                        if ( (formatCalcRaw != "LO") && (formatCalcRaw != "HI") &&
+                             (formatCalcRaw != "ERR") && (formatCalcRaw != "CAL") ) 
+                        { formatCalcRaw = ((Math.round(currentCalcRaw)*0.0555).toFixed(1)); }
                         //console.log("Format Unfiltered: " + formatRawUnfilt);
                       }
                     } // if currentRawUnfilt 
