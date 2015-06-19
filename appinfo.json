@@ -21,93 +21,9 @@
     "resources": {
         "media": [
             {
-                "file": "images/rcvroff.png",
-                "name": "IMAGE_RCVROFF",
-                "type": "png"
-            },
-            {
-                "file": "images/rcvron.png",
-                "name": "IMAGE_RCVRON",
-                "type": "png"
-            },
-            {
-                "file": "images/questionmarks.png",
-                "name": "IMAGE_QUESTION_MARKS",
-                "type": "png"
-            },
-            {
-                "file": "images/hourglass.png",
-                "name": "IMAGE_HOURGLASS",
-                "type": "png"
-            },
-            {
-                "file": "images/stoplight.png",
-                "name": "IMAGE_STOP_LIGHT",
-                "type": "png"
-            },
-            {
-                "file": "images/blooddrop.png",
-                "name": "IMAGE_BLOOD_DROP",
-                "type": "png"
-            },
-            {
-                "file": "images/brokenantenna.png",
-                "name": "IMAGE_BROKEN_ANTENNA",
-                "type": "png"
-            },
-            {
-                "file": "images/logo.png",
-                "name": "IMAGE_LOGO",
-                "type": "png"
-            },
-            {
-                "file": "images/specvaluenone.png",
-                "name": "IMAGE_SPECVALUE_NONE",
-                "type": "png"
-            },
-            {
-                "file": "images/rcvrnone.png",
-                "name": "IMAGE_RCVRNONE",
-                "type": "png"
-            },
-            {
-                "file": "images/down45.png",
-                "name": "IMAGE_DOWN45",
-                "type": "png"
-            },
-            {
-                "file": "images/downdown.png",
-                "name": "IMAGE_DOWNDOWN",
-                "type": "png"
-            },
-            {
-                "file": "images/down.png",
-                "name": "IMAGE_DOWN",
-                "type": "png"
-            },
-            {
-                "file": "images/flat.png",
-                "name": "IMAGE_FLAT",
-                "type": "png"
-            },
-            {
-                "file": "images/up45.png",
-                "name": "IMAGE_UP45",
-                "type": "png"
-            },
-            {
-                "file": "images/upup.png",
-                "name": "IMAGE_UPUP",
-                "type": "png"
-            },
-            {
-                "file": "images/up.png",
-                "name": "IMAGE_UP",
-                "type": "png"
-            },
-            {
-                "file": "images/club55.png",
-                "name": "IMAGE_CLUB55",
+                "file": "images/menuicon.png",
+                "menuIcon": true,
+                "name": "IMAGE_MENU_ICON",
                 "type": "png"
             },
             {
@@ -116,17 +32,102 @@
                 "type": "png"
             },
             {
-                "file": "images/menuicon.png",
-                "menuIcon": true,
-                "name": "IMAGE_MENU_ICON",
+                "file": "images/club55.png",
+                "name": "IMAGE_CLUB55",
+                "type": "png"
+            },
+            {
+                "file": "images/up.png",
+                "name": "IMAGE_UP",
+                "type": "png"
+            },
+            {
+                "file": "images/upup.png",
+                "name": "IMAGE_UPUP",
+                "type": "png"
+            },
+            {
+                "file": "images/up45.png",
+                "name": "IMAGE_UP45",
+                "type": "png"
+            },
+            {
+                "file": "images/flat.png",
+                "name": "IMAGE_FLAT",
+                "type": "png"
+            },
+            {
+                "file": "images/down.png",
+                "name": "IMAGE_DOWN",
+                "type": "png"
+            },
+            {
+                "file": "images/downdown.png",
+                "name": "IMAGE_DOWNDOWN",
+                "type": "png"
+            },
+            {
+                "file": "images/down45.png",
+                "name": "IMAGE_DOWN45",
+                "type": "png"
+            },
+            {
+                "file": "images/rcvrnone.png",
+                "name": "IMAGE_RCVRNONE",
+                "type": "png"
+            },
+            {
+                "file": "images/specvaluenone.png",
+                "name": "IMAGE_SPECVALUE_NONE",
+                "type": "png"
+            },
+            {
+                "file": "images/logo.png",
+                "name": "IMAGE_LOGO",
+                "type": "png"
+            },
+            {
+                "file": "images/brokenantenna.png",
+                "name": "IMAGE_BROKEN_ANTENNA",
+                "type": "png"
+            },
+            {
+                "file": "images/blooddrop.png",
+                "name": "IMAGE_BLOOD_DROP",
+                "type": "png"
+            },
+            {
+                "file": "images/stoplight.png",
+                "name": "IMAGE_STOP_LIGHT",
+                "type": "png"
+            },
+            {
+                "file": "images/hourglass.png",
+                "name": "IMAGE_HOURGLASS",
+                "type": "png"
+            },
+            {
+                "file": "images/questionmarks.png",
+                "name": "IMAGE_QUESTION_MARKS",
+                "type": "png"
+            },
+            {
+                "file": "images/rcvron.png",
+                "name": "IMAGE_RCVRON",
+                "type": "png"
+            },
+            {
+                "file": "images/rcvroff.png",
+                "name": "IMAGE_RCVROFF",
                 "type": "png"
             }
         ]
     },
+    "sdkVersion": "2",
     "shortName": "Nightscout",
     "uuid": "4bfa0b46-b9fa-4e1a-b2ba-a2ba7168f897",
-    "versionCode": 12,
-    "versionLabel": "7.1",
+    "versionCode": 1,
+    "versionLabel": "7.2",
     "watchapp": {
         "watchface": true
     }

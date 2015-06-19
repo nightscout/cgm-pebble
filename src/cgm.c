@@ -6,7 +6,10 @@
 // ANYTHING THAT IS CALLED BY PEBBLE API HAS TO BE NOT STATIC
 // PEBBLE BLUETOOTH API FLAGS ARE BOOL FLAGS
 // ALL OTHER FLAGS ARE DECLARED AS UINT8_T; FALSE = 100; TRUE = 111
-
+// PEBBLE OUTAGES - IN THIS ORDER OR PRECEDENCE
+// BLUETOOTH - CHECK PHONE - CHECK RIG/CGM
+// IF CHECKING FOR A SPECIFIC OUTAGE, YOU HAVE TO CHECK FOR ALL HIGHER CONDITIONS IN OUTAGE HIERARCHY
+  
 Window *window_cgm = NULL;
 
 TextLayer *tophalf_layer = NULL;
@@ -69,7 +72,13 @@ uint32_t current_cgm_time = 0;
 uint32_t stored_cgm_time = 0;
 uint32_t current_cgm_timeago = 0;
 uint8_t init_loading_cgm_timeago = 111;
+int cgm_timeago_diff = 0;
+
+// global variable for single state machine
+// sometimes we have to know we have cleared an outage, but the outage flags
+// have not been cleared in their single states; this is for that condition
 uint8_t ClearedOutage = 100;
+uint8_t ClearedBTOutage = 100;
 
 uint32_t current_app_time = 0;
 char current_bg_delta[10] = {0};
@@ -119,6 +128,7 @@ static const uint8_t MINUTEAGO = 60;
 static const uint16_t HOURAGO = 60*(60);
 static const uint32_t DAYAGO = 24*(60*60);
 static const uint32_t WEEKAGO = 7*(24*60*60);
+static const uint32_t TWOYEARSAGO = 2*365*(24*60*60);
 static const uint16_t MS_IN_A_SECOND = 1000;
 
 // Constants for string buffers
@@ -201,7 +211,7 @@ uint8_t DATAOFFLINE_VIBE = 1;
 // RANGE 0-240
 // IF YOU WANT TO WAIT LONGER TO GET CONDITION, INCREASE NUMBER
 static const uint8_t CGMOUT_WAIT_MIN = 15;
-static const uint8_t CGMOUT_INIT_WAIT_MIN = 6;
+static const uint8_t CGMOUT_INIT_WAIT_MIN = 7;
 static const uint8_t PHONEOUT_WAIT_MIN = 5;
 
 // Control Messages
@@ -223,12 +233,6 @@ uint8_t HardCodeNoVibrations = 100;
 uint8_t HardCodeNoAnimations = 100;
 uint8_t HardCodeAllAnimations = 100;
 
-// Control Vibrations for Config File
-// IF YOU WANT NO VIBRATIONS, SET TO 111 (true)
-uint8_t TurnOffAllVibrations = 100;
-// IF YOU WANT LESS INTENSE VIBRATIONS, SET TO 111 (true)
-uint8_t TurnOffStrongVibrations = 100;
-
 // Control Raw data
 // If you want to turn off vibrations for calculated raw, set to 111 (true)
 uint8_t TurnOffVibrationsCalcRaw = 100;
@@ -236,6 +240,12 @@ uint8_t TurnOffVibrationsCalcRaw = 100;
 uint8_t TurnOnUnfilteredRaw = 100;
 
 // ** END OF CONSTANTS THAT CAN BE CHANGED; DO NOT CHANGE IF YOU DO NOT KNOW WHAT YOU ARE DOING **
+
+// Control Vibrations for Config File
+// IF YOU WANT NO VIBRATIONS, SET TO 111 (true)
+uint8_t TurnOffAllVibrations = 100;
+// IF YOU WANT LESS INTENSE VIBRATIONS, SET TO 111 (true)
+uint8_t TurnOffStrongVibrations = 100;
 
 // Bluetooth Timer Wait Time, in Seconds
 // RANGE 0-240
@@ -689,6 +699,7 @@ void handle_bluetooth_cgm(bool bt_connected) {
   //APP_LOG(APP_LOG_LEVEL_INFO, "HANDLE BT: ENTER CODE");
   
   if (bt_connected == false)
+  // bluetooth is out  
   {
 	
 	// Check BluetoothAlert for extended Bluetooth outage; if so, do nothing
@@ -738,11 +749,12 @@ void handle_bluetooth_cgm(bool bt_connected) {
   else {
 	// Bluetooth is on, reset BluetoothAlert
     //APP_LOG(APP_LOG_LEVEL_INFO, "HANDLE BT: BLUETOOTH ON");
-    if (BluetoothAlert == 111) { 
-      ClearedOutage = 111; 
+    //if (BluetoothAlert == 111) { 
+      //ClearedOutage = 111; 
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "BT HANDLER, SET CLEARED OUTAGE: %i ", ClearedOutage);
-    } 
+    //} 
     BluetoothAlert = 100;
+    ClearedBTOutage = 111;
     if (BT_timer == NULL) {
       // no timer is set, so need to reset timer pop
       BT_timer_pop = 100;
@@ -1070,7 +1082,7 @@ void perfectbg_animation_started(Animation *animation, void *data) {
   
 	// clear out BG and icon
   text_layer_set_text(bg_layer, " ");
-  text_layer_set_text(message_layer, "FIST BUMP!\0");
+  text_layer_set_text(message_layer, "HAPPY DANCE!\0");
   
 } // end perfectbg_animation_started
 
@@ -1118,8 +1130,8 @@ void animate_perfectbg() {
     create_update_bitmap(&perfectbg_bitmap,perfectbg_layer,PERFECTBG_ICONS[CLUB100_ICON_INDX]);
   }
 	animate_perfectbg_layer = bitmap_layer_get_layer(perfectbg_layer);
-	from_perfectbg_rect = GRect(0, 3, 95, 47);
-	to_perfectbg_rect = GRect(144, 3, 95, 47);      
+	from_perfectbg_rect = GRect(144, 3, 95, 47);
+	to_perfectbg_rect = GRect(-80, 3, 95, 47);    
 	destroy_perfectbg_animation(&perfectbg_animation);
 	//APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE BG, CREATE FRAME");
 	perfectbg_animation = property_animation_create_layer_frame(animate_perfectbg_layer, &from_perfectbg_rect, &to_perfectbg_rect);
@@ -1201,8 +1213,8 @@ void animate_happymsg(char *happymsg_to_display) {
 	text_layer_set_text(happymsg_layer, animate_happymsg_buffer);
   //APP_LOG(APP_LOG_LEVEL_DEBUG, "ANIMATE HAPPY MSG, MSG IN BUFFER: %s", animate_happymsg_buffer);
   animate_happymsg_layer = text_layer_get_layer(happymsg_layer);
-	from_happymsg_rect = GRect(-10, 33, 144, 55);
-	to_happymsg_rect = GRect(144, 33, 144, 55);      
+	from_happymsg_rect = GRect(144, 33, 144, 55);
+	to_happymsg_rect = GRect(-144, 33, 144, 55); 
 	destroy_happymsg_animation(&happymsg_animation);
 	//APP_LOG(APP_LOG_LEVEL_INFO, "ANIMATE HAPPY MSG, CREATE FRAME");
 	happymsg_animation = property_animation_create_layer_frame(animate_happymsg_layer, &from_happymsg_rect, &to_happymsg_rect);
@@ -1384,13 +1396,13 @@ static void load_bg() {
   // happy message; max message 24 characters
   // DO NOT GO OVER 24 CHARACTERS, INCLUDING SPACES OR YOU WILL CRASH
   // YOU HAVE BEEN WARNED
-  char happymsg_buffer65[26] = "SUUGAR! YES PLZ FOR*MY*D\0";
-	char happymsg_buffer83[26] = "PEDAL TO THE MEDAL! CK83\0";
+	char happymsg_buffer65[26] = "TIME TO DIA BEAT*THIS!\0";
+	char happymsg_buffer83[26] = "PEDAL TO THE METAL! CK83\0";
 	char happymsg_buffer143[26] = "YOUR PEBBLE LOVES U TOO\0";
-  char happymsg_buffer123[26] = "ABC EASY AS D*CAN*BE\0";
+  char happymsg_buffer107[26] = "TEAM NN RACING 4*THE*WIN\0";
 	char happymsg_buffer116[26] = "VICTORY LANE! RYAN REED\0";
-	char happymsg_buffer222[26] = "UR BG'S MOVIN NO*LIE*LIE\0";
-  char happymsg_buffer321[26] = "BLAST OFF! HOUSTON?\0";
+	char happymsg_buffer207[26] = "HILO HILO OFF 2TEST U GO\0";
+  char happymsg_buffer314[26] = "NO MORE PIE FOR*YOU\0";
   
 	// CODE START
   
@@ -1406,7 +1418,7 @@ static void load_bg() {
 	  // convert BG value from string to int
 	  
 	  // FOR TESTING ONLY
-    //strncpy(last_bg, "5", BG_BUFFER_SIZE);
+    //strncpy(last_bg, "10", BG_BUFFER_SIZE);
 	
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, BGATOI IN, CURRENT_BG: %d LAST_BG: %s ", current_bg, last_bg);
     current_bg = myBGAtoi(last_bg);
@@ -1523,11 +1535,11 @@ static void load_bg() {
 
         // EVERY TIME YOU DO A NEW MESSAGE, YOU HAVE TO ALLOCATE A NEW HAPPY MSG BUFFER AT THE TOP OF LOAD BG FUNCTION
         
-        if ((currentBG_isMMOL == 100) && (current_bg == 143)) {
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 107)) || ((currentBG_isMMOL == 111) && (current_bg == 107)) ) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer143);
-        } // animate happy msg layer @ 143
+		      animate_happymsg(happymsg_buffer107);
+        } // animate happy msg layer @ 107
       
         if ((currentBG_isMMOL == 100) && (current_bg == 116)) {
 		      // ANIMATE HAPPY MSG LAYER     
@@ -1535,11 +1547,11 @@ static void load_bg() {
 		      animate_happymsg(happymsg_buffer116);
         } // animate happy msg layer @ 116
       
-        if ( ((currentBG_isMMOL == 100) && (current_bg == 222)) || ((currentBG_isMMOL == 111) && (current_bg == 120)) ) {
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 207)) || ((currentBG_isMMOL == 111) && (current_bg == 117)) ) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer222);
-        } // animate happy msg layer @ 222
+		      animate_happymsg(happymsg_buffer207);
+        } // animate happy msg layer @ 207
 		
         if ( ((currentBG_isMMOL == 100) && (current_bg == 83)) || ((currentBG_isMMOL == 111) && (current_bg == 83)) ) {
 		      // ANIMATE HAPPY MSG LAYER     
@@ -1548,18 +1560,18 @@ static void load_bg() {
         } // animate happy msg layer @ 83
         
         if (HardCodeAllAnimations == 111) {
-          // extra animations for those that want them, these are the old ones
-		      if ((currentBG_isMMOL == 100) && (current_bg == 321)) {
+          // extra animations for those that want them
+		      if ((currentBG_isMMOL == 100) && (current_bg == 314)) {
 		        // ANIMATE HAPPY MSG LAYER     
 		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		        animate_happymsg(happymsg_buffer321);
-		      } // animate happy msg layer @ 321
+		        animate_happymsg(happymsg_buffer314);
+		      } // animate happy msg layer @ 314
         
-		      if ((currentBG_isMMOL == 100) && (current_bg == 123)) {
+		      if ((currentBG_isMMOL == 100) && (current_bg == 143)) {
 		        // ANIMATE HAPPY MSG LAYER     
 		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		        animate_happymsg(happymsg_buffer123);
-          }  // animate happy msg layer @ 123 
+		        animate_happymsg(happymsg_buffer143);
+          }  // animate happy msg layer @ 143 
           
 		      if ( ((currentBG_isMMOL == 100) && (current_bg == 65)) || ((currentBG_isMMOL == 111) && (current_bg == 35)) ) {
 		        // ANIMATE HAPPY MSG LAYER     
@@ -1618,14 +1630,14 @@ static void load_bg() {
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, START VIBRATE, CALC_RAW 2: %d FORMAT CALC RAW 2: %s ", current_calc_raw2, formatted_calc_raw2);
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG, START VIBRATE, CALC_RAW 3: %d FORMAT CALC RAW 2: %s ", current_calc_raw3, formatted_calc_raw3);
       
-	  bg_vibrator (0, bg_ptr[SPECVALUE_BG_INDX], SPECVALUE_SNZ_MIN, &specvalue_overwrite, SPECVALUE_VIBE);
-	  bg_vibrator (bg_ptr[SPECVALUE_BG_INDX], bg_ptr[HYPOLOW_BG_INDX], HYPOLOW_SNZ_MIN, &hypolow_overwrite, HYPOLOWBG_VIBE);
-	  bg_vibrator (bg_ptr[HYPOLOW_BG_INDX], bg_ptr[BIGLOW_BG_INDX], BIGLOW_SNZ_MIN, &biglow_overwrite, BIGLOWBG_VIBE);
-	  bg_vibrator (bg_ptr[BIGLOW_BG_INDX], bg_ptr[MIDLOW_BG_INDX], MIDLOW_SNZ_MIN, &midlow_overwrite, LOWBG_VIBE);
-	  bg_vibrator (bg_ptr[MIDLOW_BG_INDX], bg_ptr[LOW_BG_INDX], LOW_SNZ_MIN, &low_overwrite, LOWBG_VIBE);
- 	  bg_vibrator (bg_ptr[HIGH_BG_INDX], bg_ptr[MIDHIGH_BG_INDX], HIGH_SNZ_MIN, &high_overwrite, HIGHBG_VIBE);
- 	  bg_vibrator (bg_ptr[MIDHIGH_BG_INDX], bg_ptr[BIGHIGH_BG_INDX], MIDHIGH_SNZ_MIN, &midhigh_overwrite, HIGHBG_VIBE);
-	  bg_vibrator (bg_ptr[BIGHIGH_BG_INDX], 1000, BIGHIGH_SNZ_MIN, &bighigh_overwrite, BIGHIGHBG_VIBE);
+      bg_vibrator (0, bg_ptr[SPECVALUE_BG_INDX], SPECVALUE_SNZ_MIN, &specvalue_overwrite, SPECVALUE_VIBE);
+      bg_vibrator (bg_ptr[SPECVALUE_BG_INDX], bg_ptr[HYPOLOW_BG_INDX], HYPOLOW_SNZ_MIN, &hypolow_overwrite, HYPOLOWBG_VIBE);
+      bg_vibrator (bg_ptr[HYPOLOW_BG_INDX], bg_ptr[BIGLOW_BG_INDX], BIGLOW_SNZ_MIN, &biglow_overwrite, BIGLOWBG_VIBE);
+      bg_vibrator (bg_ptr[BIGLOW_BG_INDX], bg_ptr[MIDLOW_BG_INDX], MIDLOW_SNZ_MIN, &midlow_overwrite, LOWBG_VIBE);
+      bg_vibrator (bg_ptr[MIDLOW_BG_INDX], bg_ptr[LOW_BG_INDX], LOW_SNZ_MIN, &low_overwrite, LOWBG_VIBE);
+      bg_vibrator (bg_ptr[HIGH_BG_INDX], bg_ptr[MIDHIGH_BG_INDX], HIGH_SNZ_MIN, &high_overwrite, HIGHBG_VIBE);
+      bg_vibrator (bg_ptr[MIDHIGH_BG_INDX], bg_ptr[BIGHIGH_BG_INDX], MIDHIGH_SNZ_MIN, &midhigh_overwrite, HIGHBG_VIBE);
+      bg_vibrator (bg_ptr[BIGHIGH_BG_INDX], 1000, BIGHIGH_SNZ_MIN, &bighigh_overwrite, BIGHIGHBG_VIBE);
 
       // else "normal" range or init code
       if ( ((current_bg > bg_ptr[LOW_BG_INDX]) && (current_bg < bg_ptr[HIGH_BG_INDX])) 
@@ -1646,13 +1658,16 @@ static void load_cgmtime() {
     //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME FUNCTION START");
 	
     // VARIABLES
-  
     
     static uint32_t cgm_time_offset = 0;
     static char formatted_cgm_timeago[10] = {0};
   
-    int cgm_timeago_diff = 0;
-    char cgm_label_buffer[6] = {0};	
+    char cgm_label_buffer[6] = {0};
+
+    time_t current_temp_time = time(NULL);
+    struct tm *current_local_time = localtime(&current_temp_time);
+    size_t draw_cgm_time = 0;
+    static char cgm_time_text[] = "00:00";
     
     // CODE START
 	
@@ -1672,18 +1687,35 @@ static void load_cgmtime() {
    
       cgm_time_now = time(NULL);
       
+      if ((init_loading_cgm_timeago == 111) && (PhoneOffAlert == 100)) {
+        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME, INIT CGM TIMEAGO SHOW LAST TIME");
+        current_temp_time = current_cgm_time;
+        current_local_time = localtime(&current_temp_time);
+        draw_cgm_time = strftime(cgm_time_text, TIME_TEXTBUFF_SIZE, "%l:%M", current_local_time);
+        if (draw_cgm_time != 0) {
+          text_layer_set_text(cgmtime_layer, cgm_time_text);
+        }
+        //strncpy (formatted_cgm_timeago, "12:00", TIMEAGO_BUFFER_SIZE);
+        //text_layer_set_text(cgmtime_layer, formatted_cgm_timeago);
+      }
+      
       // display cgm_timeago as now to 5m always, no matter what the difference is by using an offset
       if (stored_cgm_time == current_cgm_time) {
-        current_cgm_timeago = ( (abs(cgm_time_now - current_cgm_time)) - cgm_time_offset );
+          // stored time is same as incoming time, so display timeago
+          current_cgm_timeago = (abs((abs(cgm_time_now - current_cgm_time)) - cgm_time_offset));
       }
       else {
-        if ((stored_cgm_time != 0) && (BluetoothAlert == 100) && (AppSyncErrAlert == 100) && 
-          (PhoneOffAlert == 100)) {
+        // got new cgm time, set loading flags and get offset
+        if ((stored_cgm_time != 0) && (BluetoothAlert == 100) && (PhoneOffAlert == 100) && 
+          (AppSyncErrAlert == 100)) {
           init_loading_cgm_timeago = 100;
         }
+        
+        // get offset
         stored_cgm_time = current_cgm_time;
         current_cgm_timeago = 0;
         cgm_time_offset = abs(cgm_time_now - current_cgm_time); 
+        
       }
 
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIME: %lu", current_cgm_time);
@@ -1696,7 +1728,7 @@ static void load_cgmtime() {
       
       
 	    // if not in initial cgm timeago, set rcvr on icon and time label
-      if (init_loading_cgm_timeago == 100) {
+      if ((init_loading_cgm_timeago == 100) && (BluetoothAlert == 100) && (PhoneOffAlert == 100)) {
         create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVRON_ICON_INDX]);
       
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, CURRENT CGM TIME: %lu", current_cgm_time);
@@ -1710,6 +1742,8 @@ static void load_cgmtime() {
         if (current_cgm_timeago < MINUTEAGO) {
           cgm_timeago_diff = 0;
           strncpy (formatted_cgm_timeago, "now", TIMEAGO_BUFFER_SIZE);
+          // We've cleared Check Rig, so make sure reset flag is set.
+          CGMOffAlert = 100;
         }
         else if (current_cgm_timeago < HOURAGO) {
           cgm_timeago_diff = (current_cgm_timeago / MINUTEAGO);
@@ -1741,7 +1775,9 @@ static void load_cgmtime() {
       
       // check to see if we need to show receiver off icon
       if ( ((cgm_timeago_diff >= CGMOUT_WAIT_MIN) || ((strcmp(cgm_label_buffer, "") != 0) && (strcmp(cgm_label_buffer, "m") != 0))) 
-        || ((current_cgm_timeago < HOURAGO) && ((current_cgm_timeago / MINUTEAGO) >= CGMOUT_INIT_WAIT_MIN) && (init_loading_cgm_timeago == 111)) ) {
+      || ( ( ((current_cgm_timeago < TWOYEARSAGO) && ((current_cgm_timeago / MINUTEAGO) >= CGMOUT_INIT_WAIT_MIN)) 
+          || ((strcmp(cgm_label_buffer, "") != 0) && (strcmp(cgm_label_buffer, "m") != 0)) )
+           && (init_loading_cgm_timeago == 111) && (ClearedOutage == 100) && (ClearedBTOutage == 100) ) ) {
 	      // set receiver off icon
 	      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET RCVR OFF ICON, CGM TIMEAGO DIFF: %d", cgm_timeago_diff);
 	      //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET RCVR OFF ICON, LABEL: %s", cgm_label_buffer);
@@ -1749,18 +1785,20 @@ static void load_cgmtime() {
 	        create_update_bitmap(&cgmicon_bitmap,cgmicon_layer,TIMEAGO_ICONS[RCVROFF_ICON_INDX]);
         }       
 	      // Vibrate if we need to
-	      if ((CGMOffAlert == 100) && (PhoneOffAlert == 100)) {
+	      if ((BluetoothAlert == 100) && (PhoneOffAlert == 100) && (CGMOffAlert == 100) && 
+            (ClearedOutage == 100) && (ClearedBTOutage == 100)) {
 	        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD CGMTIME, CGM TIMEAGO: VIBRATE");
 	        alert_handler_cgm(CGMOUT_VIBE);
 	        CGMOffAlert = 111;
+          text_layer_set_text(message_layer, "CHECK RIG");
 	      } // if CGMOffAlert       
       } // if CGM_OUT_MIN     
 	    else {
-	      // CGM is not out, reset CGMOffAlert
-        if (CGMOffAlert == 111) { 
-          ClearedOutage = 111; 
+        if ((CGMOffAlert == 111) && (cgm_timeago_diff != 0)) { 
+          ClearedOutage = 111;
           //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD CGMTIME, SET CLEARED OUTAGE: %i ", ClearedOutage);
         } 
+        // CGM is not out, reset CGMOffAlert
         CGMOffAlert = 100;
       } // else CGM_OUT_MIN
       
@@ -1789,7 +1827,7 @@ static void load_apptime(){
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, CURRENT APP TIMEAGO: %lu", current_app_timeago);
       
 	  app_timeago_diff = (current_app_timeago / MINUTEAGO);
-	  if ( (current_app_timeago < HOURAGO) && (app_timeago_diff >= PHONEOUT_WAIT_MIN) ) {
+	  if ( (current_app_timeago < TWOYEARSAGO) && (app_timeago_diff >= PHONEOUT_WAIT_MIN) ) {
               
         // erase cgm ago times and cgm icon
         text_layer_set_text(cgmtime_layer, "");
@@ -1799,17 +1837,18 @@ static void load_apptime(){
 		
 		  //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, CHECK IF HAVE TO VIBRATE");
 		  // Vibrate if we need to
-		  if (PhoneOffAlert == 100) {
+		  if ((BluetoothAlert == 100) && (PhoneOffAlert == 100) && 
+          (ClearedOutage == 100) && (ClearedBTOutage == 100)) {
 		    //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD APPTIME, READ APP TIMEAGO: VIBRATE");
 		    alert_handler_cgm(PHONEOUT_VIBE);
 		    PhoneOffAlert = 111;
+        text_layer_set_text(message_layer, "CHECK PHONE");
 		  }
 	  }
 	  else {
 	    // reset PhoneOffAlert    
       if (PhoneOffAlert == 111) {
         ClearedOutage = 111;
-        stored_cgm_time = current_cgm_time;
         //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD APPTIME, SET CLEARED OUTAGE: %i ", ClearedOutage);
       } 
       PhoneOffAlert = 100;
@@ -1838,27 +1877,38 @@ static void load_bg_delta() {
 	// check bluetooth connection
 	bluetooth_connected_cgm = bluetooth_connection_service_peek();
     
-	if (!bluetooth_connected_cgm) {
+	if ((!bluetooth_connected_cgm) || (BluetoothAlert == 111)) {
 	  // Bluetooth is out; BT message already set, so return
 	  return;
 	}
     
 	// check for CHECK PHONE condition, if true set message
-	if ((PhoneOffAlert == 111) && (TurnOff_CHECKPHONE_Msg == 100)) {
+	if ((PhoneOffAlert == 111) && (ClearedOutage == 100) && (ClearedBTOutage == 100) && 
+      (TurnOff_CHECKPHONE_Msg == 100)) {
 	  text_layer_set_text(message_layer, "CHECK PHONE");
     //APP_LOG(APP_LOG_LEVEL_DEBUG, "LOAD BG DELTA MSG, init_loading_cgm_timeago: %i", init_loading_cgm_timeago);
     return;	
 	}
-	
+
 	// check for CHECK CGM condition, if true set message
-	if ((CGMOffAlert == 111) && (TurnOff_CHECKCGM_Msg == 100)) {
+    
+	if ((CGMOffAlert == 111) && (ClearedOutage == 100) && (ClearedBTOutage == 100) && 
+      (current_cgm_timeago != 0) && (stored_cgm_time == current_cgm_time) &&
+      (TurnOff_CHECKCGM_Msg == 100)) {
 	  text_layer_set_text(message_layer, "CHECK RIG");
     return;	
 	}
+  
+  // Clear out any remaining CHECK RIG condition
+  if ((CGMOffAlert == 111) && (current_cgm_timeago == 0) &&
+      (TurnOff_CHECKCGM_Msg == 100)) {
+	  init_loading_cgm_timeago = 100;
+    return;
+  }
 	
 	// check for special messages; if no string, set no message
 	if (strcmp(current_bg_delta, "") == 0) {
-      strncpy(formatted_bg_delta, "", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "", MSGLAYER_BUFFER_SIZE); 
       text_layer_set_text(message_layer, formatted_bg_delta);
       return;	
     }
@@ -1904,7 +1954,7 @@ static void load_bg_delta() {
   	// check if LOADING.., if true set message
   	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
-      strncpy(formatted_bg_delta, "LOADING 7.1", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "LOADING 7.2", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
@@ -2124,6 +2174,10 @@ static void load_noise() {
 void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple, const Tuple* old_tuple, void* context) {
 	//APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE");
 	
+  // VARIABLES
+  uint8_t need_to_reset_outage_flag = 100;
+  uint8_t get_new_cgm_time = 100;
+  
 	// CONSTANTS
 	const uint8_t ICON_MSGSTR_SIZE = 4;
 	const uint8_t BG_MSGSTR_SIZE = 6;
@@ -2158,16 +2212,53 @@ void sync_tuple_changed_callback_cgm(const uint32_t key, const Tuple* new_tuple,
       current_cgm_time = new_tuple->value->uint32;
       cgm_time_now = time(NULL);
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CLEARED OUTAGE IN: %i ", ClearedOutage);
-      if ((ClearedOutage == 111) && (stored_cgm_time != 0)) {
+      
+      // set up proper CGM time before calling load CGM time
+      if ( ((ClearedOutage == 111) || (ClearedBTOutage == 111)) && (stored_cgm_time != 0)) {
         stored_cgm_time = current_cgm_time;
+        current_cgm_timeago = 0;
         init_loading_cgm_timeago = 111;
-        ClearedOutage = 100;
+        need_to_reset_outage_flag = 111;
+        
       }
+      // get stored cgm time again for bluetooth race condition
+      if (get_new_cgm_time == 111) { 
+         stored_cgm_time = current_cgm_time;
+         current_cgm_timeago = 0;
+        // reset flag
+         get_new_cgm_time = 100;
+      }
+    
+      // clear CHECK RIG message if still there
+      if ((CGMOffAlert == 111) && (need_to_reset_outage_flag = 111) && (stored_cgm_time != current_cgm_time)) {
+        load_bg_delta();
+      }
+     
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CURRENT CGM TIME: %lu ", current_cgm_time);
-      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, TIME NOW: %lu ", cgm_time_now);
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, STORED CGM TIME: %lu ", stored_cgm_time);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, TIME NOW: %lu ", cgm_time_now);
       //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CLEARED OUTAGE OUT: %i ", ClearedOutage);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CURRENT CGM TIMEAGO: %lu ", current_cgm_timeago);
+      //APP_LOG(APP_LOG_LEVEL_DEBUG, "SYNC TUPLE, CURRENT CGM TIMEAGO DIFF: %i ", cgm_timeago_diff);   
+    
       load_cgmtime();
+ 
+      // if just cleared an outage, reset flags
+      if (need_to_reset_outage_flag == 111) {
+        // reset stored cgm_time for bluetooth race condition
+        if (ClearedBTOutage == 111) { 
+            // just cleared a BT outage, so make sure we are still in init_loading
+            init_loading_cgm_timeago = 111;
+            // set get new CGM time flag
+            get_new_cgm_time = 111;
+        }
+        // reset the ClearedOutages flag
+        ClearedOutage = 100;
+        ClearedBTOutage = 100;      
+        // reset outage flag
+        need_to_reset_outage_flag = 100;
+      }
+    
       //APP_LOG(APP_LOG_LEVEL_INFO, "SYNC TUPLE: READ CGM TIME OUT");
       break; // break for CGM_TCGM_KEY
 
@@ -2403,13 +2494,13 @@ void window_load_cgm(Window *window_cgm) {
   layer_add_child(window_layer_cgm, bitmap_layer_get_layer(perfectbg_layer));
   
   // CGM TIME AGO ICON
-  cgmicon_layer = bitmap_layer_create(GRect(2, 63, 40, 19));
+  cgmicon_layer = bitmap_layer_create(GRect(0, 63, 40, 19));
   bitmap_layer_set_alignment(cgmicon_layer, GAlignLeft);
   bitmap_layer_set_background_color(cgmicon_layer, GColorWhite);
   layer_add_child(window_layer_cgm, bitmap_layer_get_layer(cgmicon_layer));  
   
   // CGM TIME AGO READING
-  cgmtime_layer = text_layer_create(GRect(26, 56, 40, 24));
+  cgmtime_layer = text_layer_create(GRect(26, 56, 50, 24));
   text_layer_set_text_color(cgmtime_layer, GColorBlack);
   text_layer_set_background_color(cgmtime_layer, GColorClear);
   text_layer_set_font(cgmtime_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
@@ -2451,7 +2542,7 @@ void window_load_cgm(Window *window_cgm) {
   layer_add_child(window_layer_cgm, text_layer_get_layer(date_app_layer));
   
   // RAW CALCULATED
-  raw_calc_layer = text_layer_create(GRect(1, 76, 40, 25));
+  raw_calc_layer = text_layer_create(GRect(0, 76, 40, 25));
   text_layer_set_text_color(raw_calc_layer, GColorWhite);
   text_layer_set_background_color(raw_calc_layer, GColorClear);
   text_layer_set_font(raw_calc_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
@@ -2467,7 +2558,7 @@ void window_load_cgm(Window *window_cgm) {
   layer_add_child(window_layer_cgm, text_layer_get_layer(noise_layer));
   
   // RAW UNFILT
-  raw_unfilt_layer = text_layer_create(GRect(1, 92, 40, 25)); 
+  raw_unfilt_layer = text_layer_create(GRect(0, 92, 40, 25)); 
   text_layer_set_text_color(raw_unfilt_layer, GColorWhite);
   text_layer_set_background_color(raw_unfilt_layer, GColorClear);
   text_layer_set_font(raw_unfilt_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD));
