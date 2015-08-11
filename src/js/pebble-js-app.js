@@ -206,10 +206,9 @@ function fetchCgmData() {
                       if ( (currentCalcRaw > 500) && (currentCalcRaw <= 900) ) { formatCalcRaw = "HI"; }
                       if ( (currentCalcRaw < 0 ) || (currentCalcRaw > 900) ) { formatCalcRaw = "ERR"; }
                       
-                      // if slope or intercept are at 0, or if currentCalcRaw is NaN, 
+                      // if slope is 0 or if currentCalcRaw is NaN, 
                       // calculated raw is invalid and need a calibration
-                      if ( (currentSlope === 0) || (currentIntercept === 0) || 
-                           (isNaN(currentCalcRaw)) ) { formatCalcRaw = "CAL"; }
+                      if ( (currentSlope === 0) || (isNaN(currentCalcRaw)) ) { formatCalcRaw = "CAL"; }
                       
                       // check for compression warning
                       if ( ((currentCalcRaw < (currentRawFilt/1000)) && (!calibrationValue)) && (currentRawFilt !== 0) ){
