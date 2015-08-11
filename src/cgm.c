@@ -1954,7 +1954,7 @@ static void load_bg_delta() {
   	// check if LOADING.., if true set message
   	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
-      strncpy(formatted_bg_delta, "LOADING 7.2", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "LOADING 7.3", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
