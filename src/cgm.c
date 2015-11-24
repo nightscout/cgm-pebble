@@ -719,7 +719,7 @@ void handle_bluetooth_cgm(bool bt_connected) {
 	  }
 	}
 	else {
-	  // BT_timer is not null and we're still waiting
+	  // BT_timer is not null and we're still waiting (why? #WEARENOTWAITING)
 	  return;
     }
 	
@@ -888,8 +888,8 @@ if (bluetooth_connected_syncerror == false) {
     return;
   }
   
-  // set message to RESTART WATCH -> PHONE
-  text_layer_set_text(message_layer, "√APP/RESTRT");
+  // set message to Reload / Restart
+  text_layer_set_text(message_layer, "Reload/Restart");
   
   // reset appsync retries counter
   appsyncandmsg_retries_counter = 0;
@@ -915,10 +915,15 @@ void inbox_dropped_handler_cgm(AppMessageResult appmsg_indrop_error, void *conte
   // have never seen handler get called, think because AppSync is always used
   // just set log now to avoid crash, if see log then can go back to old handler
   
+  DictionaryIterator *iter = NULL;
+  AppMessageResult inboxdrop_apperr = APP_MSG_OK;
+  DictionaryResult inboxdrop_dicterr = DICT_OK;
+  
 	// APPMSG IN DROP debug logs
 	//APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG IN DROP ERROR");
 	APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG IN DROP ERR, CODE: %i RES: %s", 
           appmsg_indrop_error, translate_app_error(appmsg_indrop_error));
+  sync_error_callback_cgm(inboxdrop_dicterr, inboxdrop_apperr, iter);
     
 } // end inbox_dropped_handler_cgm
 
@@ -927,10 +932,15 @@ void outbox_failed_handler_cgm(DictionaryIterator *failed, AppMessageResult appm
   // have never seen handler get called, think because AppSync is always used
   // just set log now to avoid crash, if see log then can go back to old handler
 	
+  DictionaryIterator *iter = NULL;
+  AppMessageResult outboxfail_apperr = APP_MSG_OK;
+  DictionaryResult outboxfail_dicterr = DICT_OK;
+  
   // APPMSG OUT FAIL debug logs
   //APP_LOG(APP_LOG_LEVEL_INFO, "APPMSG OUT FAIL ERROR");
   APP_LOG(APP_LOG_LEVEL_DEBUG, "APPMSG OUT FAIL ERR, CODE: %i RES: %s", 
           appmsg_outfail_error, translate_app_error(appmsg_outfail_error));
+  sync_error_callback_cgm(outboxfail_dicterr, outboxfail_apperr, iter);
  
 } // end outbox_failed_handler_cgm
 
@@ -1040,8 +1050,8 @@ static void load_icon() {
 	      create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[LOGO_ARROW_ICON_INDX]);
 	    }
 	    else {
-		  // unexpected, set logo icon
-	      create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[LOGO_ARROW_ICON_INDX]);
+		  // unexpected, set blank icon
+	      create_update_bitmap(&icon_bitmap,icon_layer,ARROW_ICONS[NONE_ARROW_ICON_INDX]);
 	    }
 	    DoubleDownAlert = 100;
 	  }
@@ -1082,7 +1092,7 @@ void perfectbg_animation_started(Animation *animation, void *data) {
   
 	// clear out BG and icon
   text_layer_set_text(bg_layer, " ");
-  text_layer_set_text(message_layer, "HAPPY DANCE!\0");
+  text_layer_set_text(message_layer, "Evthng is Awsm\0");
   
 } // end perfectbg_animation_started
 
@@ -1396,14 +1406,14 @@ static void load_bg() {
   // happy message; max message 24 characters
   // DO NOT GO OVER 24 CHARACTERS, INCLUDING SPACES OR YOU WILL CRASH
   // YOU HAVE BEEN WARNED
-	char happymsg_buffer65[26] = "TIME TO DIA BEAT*THIS!\0";
-	char happymsg_buffer83[26] = "PEDAL TO THE METAL! CK83\0";
-	char happymsg_buffer143[26] = "YOUR PEBBLE LOVES U TOO\0";
-  char happymsg_buffer107[26] = "TEAM NN RACING 4*THE*WIN\0";
-	char happymsg_buffer116[26] = "VICTORY LANE! RYAN REED\0";
-	char happymsg_buffer207[26] = "HILO HILO OFF 2TEST U GO\0";
-  char happymsg_buffer314[26] = "NO MORE PIE FOR*YOU\0";
-  
+	char happymsg_buffer68[26] = "JEEPERS CREEPERS! SUGAR!\0";
+  char happymsg_buffer88[26] = "GR8 SCOTT! BACK 2THIS BG?\0";
+  char happymsg_buffer105[26] = "STILL JEALOUS NICE LEVELS\0";
+  char happymsg_buffer111[26] = "MAY ODDS BE IN UR*FAVOR\0";
+  char happymsg_buffer207[26] = "MAY THE FORCE BE*WITH*U\0";
+  char happymsg_buffer143[26] = "YOUR PEBBLE LOVES U TOO\0";
+  char happymsg_buffer300[26] = "PREPARE 4 GLORY! SPARTA!\0";
+    
 	// CODE START
   
 	// if special value set, erase anything in the icon field
@@ -1535,49 +1545,50 @@ static void load_bg() {
 
         // EVERY TIME YOU DO A NEW MESSAGE, YOU HAVE TO ALLOCATE A NEW HAPPY MSG BUFFER AT THE TOP OF LOAD BG FUNCTION
         
-        if ( ((currentBG_isMMOL == 100) && (current_bg == 107)) || ((currentBG_isMMOL == 111) && (current_bg == 107)) ) {
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 68)) || ((currentBG_isMMOL == 111) && (current_bg == 38)) ) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer107);
-        } // animate happy msg layer @ 107
+		      animate_happymsg(happymsg_buffer68);
+        } // animate happy msg layer @ 68
       
-        if ((currentBG_isMMOL == 100) && (current_bg == 116)) {
+        if ((currentBG_isMMOL == 100) && (current_bg == 88)) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer116);
-        } // animate happy msg layer @ 116
+		      animate_happymsg(happymsg_buffer88);
+        } // animate happy msg layer @ 88
       
-        if ( ((currentBG_isMMOL == 100) && (current_bg == 207)) || ((currentBG_isMMOL == 111) && (current_bg == 117)) ) {
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 105)) || ((currentBG_isMMOL == 111) && (current_bg == 58)) ) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer207);
-        } // animate happy msg layer @ 207
+		      animate_happymsg(happymsg_buffer105);
+        } // animate happy msg layer @ 105
 		
-        if ( ((currentBG_isMMOL == 100) && (current_bg == 83)) || ((currentBG_isMMOL == 111) && (current_bg == 83)) ) {
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 111)) || ((currentBG_isMMOL == 111) && (current_bg == 61)) ) {
 		      // ANIMATE HAPPY MSG LAYER     
 		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		      animate_happymsg(happymsg_buffer83);
-        } // animate happy msg layer @ 83
+		      animate_happymsg(happymsg_buffer111);
+        } // animate happy msg layer @ 111
+        
+        if ( ((currentBG_isMMOL == 100) && (current_bg == 207)) || ((currentBG_isMMOL == 111) && (current_bg == 117)) ) {
+		        // ANIMATE HAPPY MSG LAYER     
+		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
+		        animate_happymsg(happymsg_buffer207);            
+		      } // animate happy msg layer @ 207 
         
         if (HardCodeAllAnimations == 111) {
           // extra animations for those that want them
-		      if ((currentBG_isMMOL == 100) && (current_bg == 314)) {
-		        // ANIMATE HAPPY MSG LAYER     
-		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		        animate_happymsg(happymsg_buffer314);
-		      } // animate happy msg layer @ 314
+        if ((currentBG_isMMOL == 100) && (current_bg == 300)) {
+		      // ANIMATE HAPPY MSG LAYER     
+		      //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
+		      animate_happymsg(happymsg_buffer300);
+        } // animate happy msg layer @ 300
         
 		      if ((currentBG_isMMOL == 100) && (current_bg == 143)) {
 		        // ANIMATE HAPPY MSG LAYER     
 		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
 		        animate_happymsg(happymsg_buffer143);
           }  // animate happy msg layer @ 143 
-          
-		      if ( ((currentBG_isMMOL == 100) && (current_bg == 65)) || ((currentBG_isMMOL == 111) && (current_bg == 35)) ) {
-		        // ANIMATE HAPPY MSG LAYER     
-		        //APP_LOG(APP_LOG_LEVEL_INFO, "LOAD BG, ANIMATE HAPPY MSG LAYER");
-		        animate_happymsg(happymsg_buffer65);            
-		      } // animate happy msg layer @ 65 
+		      
         } // HardCodeAllAnimations
         
       } // HardCodeNoAnimations; end all animation code
@@ -1954,7 +1965,7 @@ static void load_bg_delta() {
   	// check if LOADING.., if true set message
   	// put " " (space) in bg field so logo continues to show
     if (strcmp(current_bg_delta, "LOAD") == 0) {
-      strncpy(formatted_bg_delta, "LOADING 7.3", MSGLAYER_BUFFER_SIZE);
+      strncpy(formatted_bg_delta, "LOADING 7.4", MSGLAYER_BUFFER_SIZE);
       text_layer_set_text(message_layer, formatted_bg_delta);
       text_layer_set_text(bg_layer, " ");
       create_update_bitmap(&icon_bitmap,icon_layer,SPECIAL_VALUE_ICONS[LOGO_SPECVALUE_ICON_INDX]);
@@ -2329,6 +2340,7 @@ static void send_cmd_cgm(void) {
   DictionaryIterator *iter = NULL;
   AppMessageResult sendcmd_openerr = APP_MSG_OK;
   AppMessageResult sendcmd_senderr = APP_MSG_OK;
+  DictionaryResult sendcmd_dicterr = DICT_OK;
   
   //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD IN, ABOUT TO OPEN APP MSG OUTBOX");
   sendcmd_openerr = app_message_outbox_begin(&iter);
@@ -2337,6 +2349,7 @@ static void send_cmd_cgm(void) {
   if (sendcmd_openerr != APP_MSG_OK) {
      //APP_LOG(APP_LOG_LEVEL_INFO, "WATCH SENDCMD OPEN ERROR");
      APP_LOG(APP_LOG_LEVEL_DEBUG, "WATCH SENDCMD OPEN ERR CODE: %i RES: %s", sendcmd_openerr, translate_app_error(sendcmd_openerr));
+     sync_error_callback_cgm(sendcmd_dicterr, sendcmd_openerr, iter);
      return;
   }
 
@@ -2346,6 +2359,7 @@ static void send_cmd_cgm(void) {
   if (sendcmd_senderr != APP_MSG_OK) {
      //APP_LOG(APP_LOG_LEVEL_INFO, "WATCH SENDCMD SEND ERROR");
      APP_LOG(APP_LOG_LEVEL_DEBUG, "WATCH SENDCMD SEND ERR CODE: %i RES: %s", sendcmd_senderr, translate_app_error(sendcmd_senderr));
+     sync_error_callback_cgm(sendcmd_dicterr, sendcmd_senderr, iter);
   }
 
   //APP_LOG(APP_LOG_LEVEL_INFO, "SEND CMD OUT, SENT MSG TO APP");
