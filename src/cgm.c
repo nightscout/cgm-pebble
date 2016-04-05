@@ -264,7 +264,7 @@ static const uint8_t HAPPYMSG_ANIMATE_SECS = 10;
 // Change to see if there is a temp or long term problem
 // This is approximately number of seconds, so if set to 50, timeout is at 50 seconds
 // However, this can vary widely - can be up to 6 seconds .... for 50, timeout can be up to 3 minutes
-static const uint8_t APPSYNCANDMSG_RETRIES_MAX = 50;
+static const uint8_t APPSYNCANDMSG_RETRIES_MAX = 0;
 
 // HTML Request retries, for timeout / busy problems
 // Change to see if there is a temp or long term problem
